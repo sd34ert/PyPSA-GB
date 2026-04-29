@@ -12,86 +12,15 @@ timestep_minutes: 60              # 60 = hourly, 30 = half-hourly
 voll: 6000.0                      # Value of Lost Load (£/MWh)
 
 # ──────────────────────────────────────────────────────────────────────────────
-# DATA SOURCES
-# ──────────────────────────────────────────────────────────────────────────────
-# Temporal profile source for demand (annual totals always from FES for future scenarios)
-# Options:
-#   "ESPENI"    - Historical half-hourly GB demand (recommended, uses demand_year)
-#   "eload"     - eLOAD model hourly profile (2010 or 2050 via profile_year)
-#   "desstinee" - DESSTINEE model hourly profile (2010 or 2050 via profile_year)
-# 
-# For eload/desstinee, profile_year auto-selects (2050 if modelled_year >= 2040, else 2010)
-demand_timeseries: "ESPENI"
-
-# ──────────────────────────────────────────────────────────────────────────────
-# SOLVER CONFIGURATION
-# ──────────────────────────────────────────────────────────────────────────────
-solver:
-  name: "gurobi"                  # Options: gurobi, highs, glpk, cplex
-  threads: 4
-  method: 2                       # 0=primal, 1=dual, 2=barrier
-  crossover: 0                    # 0=disabled (faster), -1=auto (enables crossover)
-  BarHomogeneous: 1               # 1=enable homogeneous barrier (handles numerical issues)
-  BarConvTol: 1.e-4               # Relaxed for numerical stability with large storage
-  FeasibilityTol: 1.e-4           # Relaxed for numerical stability with large storage
-  OptimalityTol: 1.e-4            # Relaxed for numerical stability with large storage
-  NumericFocus: 3                 # 0-3, higher = more careful numerics (3=max)
-  ScaleFlag: 2                    # 0-3, automatic scaling (2=aggressive)
-  DualReductions: 0               # 0=disable (clearer error messages)
-  BarIterLimit: 200               # Increase from default 1000 iterations
-
-# ──────────────────────────────────────────────────────────────────────────────
-# OPTIMIZATION MODE
-# ──────────────────────────────────────────────────────────────────────────────
-# LP (Linear Programming):    Fast (~minutes), no unit commitment
-# MILP (Mixed-Integer LP):    Slow (~hours), full unit commitment constraints
-solve_mode: "LP"                # Options: "LP" or "MILP"
-
-# ──────────────────────────────────────────────────────────────────────────────
 # CLUSTERING (disabled by default)
 # ──────────────────────────────────────────────────────────────────────────────
 clustering:
   enabled: false
-
-# ──────────────────────────────────────────────────────────────────────────────
-# COMPONENT AGGREGATION (disabled by default)
-# ──────────────────────────────────────────────────────────────────────────────
-# Merges identical generators/storage/loads at the same bus after clustering,
-# summing their capacities. Components must have matching attributes and
-# time series to be merged. Independent of clustering config.
-component_aggregation:
-  enabled: false
-  include_generators: true          # Aggregate identical generators
-  include_storage_units: false      # Aggregate storage units when possible
-  include_loads: false              # Aggregate loads per bus
-  include_stores: false             # Aggregate Store components (rarely used)
-  include_committable: false        # Allow committable unit merging
-  tolerance: 1.0e-9                 # Float comparison tolerance
-
-# ──────────────────────────────────────────────────────────────────────────────
-# RENEWABLE AGGREGATION (disabled by default)
-# ──────────────────────────────────────────────────────────────────────────────
-# Merges renewable generators at the same bus and carrier into a single
-# representative generator, using capacity-weighted average p_max_pu profiles.
-# Dramatically reduces generator count (e.g. thousands of REPD sites → one per
-# bus) without changing optimization results. Independent of spatial clustering.
-renewable_aggregation:
-  enabled: false
-  carriers:                        # Carriers eligible for aggregation
-    - wind_onshore
-    - wind_offshore
-    - solar_pv
-    - large_hydro
-    - small_hydro
-    - tidal_stream
-    - shoreline_wave
-    - tidal_lagoon
-
-# ──────────────────────────────────────────────────────────────────────────────
-# SOLVE PERIOD (full year by default)
-# ──────────────────────────────────────────────────────────────────────────────
-solve_period:
-  enabled: false                  # Set true to solve subset of year
+  aggregate_components:
+    enabled: false
+    include_storage_units: false      # Aggregate storage units when possible
+    include_loads: false               # Aggregate loads per bus after clustering
+    include_stores: false           # Aggregate Store components (rarely used)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # TRANSMISSION CONSTRAINTS
@@ -101,23 +30,15 @@ solve_period:
 transmission:
   # Minimum line capacity in MVA (lines below this are set to this value)
   min_line_s_nom: 0               # 0 = use actual ratings
-  # Minimum transformer capacity in MVA  
+  # Minimum transformer capacity in MVA
   min_transformer_s_nom: 0        # 0 = use actual ratings
   # Scaling factor for all line/transformer capacities (1.0 = no change)
   capacity_scale: 1.0             # 1.0 = no scaling (use clustering instead)
 
 # ──────────────────────────────────────────────────────────────────────────────
-# ETYS DATA SOURCE (ETYS network model only)
-# ──────────────────────────────────────────────────────────────────────────────
-# Selects which ETYS publication year to use for base network topology.
-# Available: 2022, 2023, 2024
-etys:
-  year: 2024                       # ETYS publication year
-
-# ──────────────────────────────────────────────────────────────────────────────
 # ETYS NETWORK UPGRADES (ETYS network model only)
 # ──────────────────────────────────────────────────────────────────────────────
-# Applies planned network infrastructure upgrades from the selected ETYS data.
+# Applies planned network infrastructure upgrades from ETYS Appendix B 2023.
 # Includes circuit additions/removals, transformer changes, and new HVDC links.
 # Only applies when network_model: "ETYS"
 etys_upgrades:
@@ -127,53 +48,390 @@ etys_upgrades:
   upgrade_year: null              # null, or specific year like 2030
 
 # ──────────────────────────────────────────────────────────────────────────────
-# SPATIAL MAPPING PARAMETERS
+# DEMAND DATA SOURCES
 # ──────────────────────────────────────────────────────────────────────────────
-# Controls how generators and other sites are mapped to network buses.
-# Changes here affect bus assignment for all generator types.
+# Temporal profile source for demand (annual totals always from FES for future scenarios)
+# Options:
+#   "ESPENI"    - Historical half-hourly GB demand (recommended, uses demand_year)
+#   "eload"     - eLOAD model hourly profile (2010 or 2050 via profile_year)
+#   "desstinee" - DESSTINEE model hourly profile (2010 or 2050 via profile_year)
+#
+# For eload/desstinee, profile_year auto-selects (2050 if modelled_year >= 2040, else 2010)
+demand_timeseries: "ESPENI"
+
 # ──────────────────────────────────────────────────────────────────────────────
-spatial_mapping:
-  # Coordinate system detection thresholds
-  # (distinguish OSGB36 metres from WGS84 degrees)
-  coordinate_detection:
-    osgb36_min_value: 1000        # x or y > 1000 → OSGB36 (metres)
-    wgs84_max_absolute: 100       # x and y < 100 → WGS84 (degrees)
+# SHARED PATH TEMPLATES
+# ──────────────────────────────────────────────────────────────────────────────
+# Use this section for cross-cutting mutable input paths that are reused across
+# scripts/rules. Keep subsystem-specific path config where it already exists.
+paths:
+  fes:
+    data_template: "resources/FES/FES_{year}_data.csv"
+    processed_template: "resources/FES/FES_{year}_processed.csv"
+    api_urls_yaml: "data/FES/FES_api_urls.yaml"
+  hydrogen:
+    demand_supply_distribution_workbook: "data/hydrogen/demand_supply_distribution.xlsx"
 
-  # Transmission operator latitude boundaries (degrees N, WGS84)
-  # SHETL: Northern Scotland (lat > shetl_lat_min)
-  # SPTL: Southern Scotland (sptl_lat_min < lat ≤ shetl_lat_min)
-  # NGET: England & Wales (lat ≤ sptl_lat_min)
-  transmission_regions:
-    shetl_lat_min: 57.0
-    sptl_lat_min: 55.5
+# ═══════════════════════════════════════════════════════════════════
+# LAND CONSTRAINTS — Unified Configuration
+# ═══════════════════════════════════════════════════════════════════
 
-  # Maximum bus-mapping distances (km) — sites beyond these limits are
-  # mapped to the nearest bus regardless (fallback, no hard cutoff)
-  distance_km:
-    site_to_bus: 200.0            # General site → nearest bus
-    gsp_to_bus: 100.0             # GSP coordinate → nearest bus
-    thermal_generator: 150.0      # Thermal gen OSGB → nearest bus
+land_constraints:
+  enabled: true              # Global defaults-driven GIS policy for the land workflow
+  min_modelled_year: 2025    # Informational guard for compatible future scenarios
+  supported_network_models: ["zonal"]  # Shared land outputs are currently only built for these models
 
-  # Fuzzy string matching score threshold (0–1)
-  fuzzy_threshold: 0.8
+  # ── SHARED FOUNDATION SETTINGS ──────────────────────────────────
+  foundation:
+    resolution: 100          # metres (raster processing resolution)
+    target_crs: 27700        # EPSG code for all raster processing (OSGB36)
+    source_crs: 27700        # EPSG code of most GB data (OSGB36)
 
-  # Fallback: top-N most-connected buses used when no major bus is found
-  fallback_major_bus_count: 10
 
-  # Generator voltage-correction thresholds
-  # Controls when a generator is moved to a higher-voltage bus
-  generator_voltage:
-    min_check_mw: 50              # Skip bus check below this capacity (MW)
-    very_large_mw: 300            # Must connect at ≥ min_preferred_kv (MW)
-    large_low_voltage_mw: 200     # Must NOT connect at ≤ low_voltage_kv (MW)
-    medium_mw: 100                # Needs transformer capacity check (MW)
-    max_transformer_ratio: 0.8    # Max generator / transformer s_nom ratio
-    min_preferred_kv: 275         # Preferred minimum connection voltage (kV)
-    high_voltage_kv: 400          # 400 kV-only search threshold (kV)
-    low_voltage_kv: 33            # Low-voltage threshold (kV)
+  # ── ONSHORE WIND ────────────────────────────────────────────────
+  onwind:
+    protected_tiers:                     # Hard exclusion (true) or skip (false) per tier
+      tier1: true                        # SAC/SPA/Ramsar/SSSI (excluding marine)
+      tier2: true                        # AONB/NatParks/NSA
+      tier3: true                        # Irreplaceable habitats
+      tier4: true                       # Historic environment
+    land_cover:                          # UK LCM 2024 habitat class codes (1–21)
+      exclusion_codes: [13, 14, 20, 21]  # Saltwater, Freshwater, Urban, Suburban
+    flooding:
+      enabled: true                      # Flood Zones 2, 3
+    coastal_change:
+      enabled: true
+    groundwater_protection:              # England & Wales only
+      exclusion_zones: 1                 # SPZ zones to exclude (1→Band 1)
+    airfield:
+      mod: true                          # MoD aerodromes FRZ exclusion zone
+      civil: true                        # Civil protected aerodromes FRZ exclusion zone
+    alc_bmv:
+      enabled: false                     # BMV agricultural land (Grades 1, 2, 3a)
+    green_belt:
+      enabled: false                     # Green Belt land (England & Scotland)
+    capacity_density: 3.0                # MW/km²
 
-  # Earth radius for haversine distance calculations
-  earth_radius_km: 6371.0
+  # ── OFFSHORE WIND (FIXED) ───────────────────────────────────────
+  # `capacity_density` is active in the current workflow.
+  # Other offshore siting keys are reserved for future filtering and are
+  # validated/documented but not yet enforced by the active DAG.
+  offwind-ac:
+    min_depth: 10                      # m
+    max_depth: 70                      # m
+    min_shore_distance: 10000          # m
+    max_shore_distance: 50000          # m
+    kra_lease_area: true               # must be sited within KRA/SMP region
+    capacity_density: 4.0              # MW/km²
+
+  offwind-dc:
+    min_depth: 10                      # m
+    max_depth: 70                      # m
+    min_shore_distance: 50000          # m
+    kra_lease_area: true               # must be sited within KRA/SMP region
+    capacity_density: 3.0              # MW/km²
+
+  # ── OFFSHORE WIND (FLOATING) ────────────────────────────────────
+  offwind-float:
+    min_depth: 50                      # m
+    min_shore_distance: 10000          # m
+    kra_lease_area: true               # must be sited within KRA/SMP region
+    capacity_density:
+      ac: 3.0                          # MW/km², distance to shore < 50km
+      dc: 2.0                          # MW/km², distance to shore => 50km
+
+  # ── GROUND-MOUNTED SOLAR ────────────────────────────────────────
+  solar:
+    protected_tiers:                     # Hard exclusion (true) or skip (false) per tier
+      tier1: true                        # SAC/SPA/Ramsar/SSSI (excluding marine)
+      tier2: true                        # AONB/NatParks/NSA
+      tier3: true                        # Irreplaceable habitats
+      tier4: true                        # Historic environment
+    land_cover:                          # UK LCM 2024 habitat class codes (1–21)
+      exclusion_codes: [13, 14, 20, 21]  # Saltwater, Freshwater, Urban, Suburban
+    flooding:
+      enabled: true                      # Flood Zones 2, 3
+    coastal_change:
+      enabled: false
+    groundwater_protection:              # England & Wales only
+      exclusion_zones: 1                 # SPZ zones to exclude (1→Band 1)
+    airfield:
+      mod: true                          # MoD aerodromes FRZ exclusion zone
+      civil: false                       # Civil protected aerodromes FRZ exclusion zone
+    alc_bmv:
+      enabled: true                      # Hard constraint: BMV agricultural land (Grades 1, 2, 3a)
+    green_belt:
+      enabled: true                      # Hard constraint: Green Belt land (England & Scotland)
+    capacity_density: 50.0               # MW/km²
+
+# ═══════════════════════════════════════════════════════════════════
+# GENERATOR SITING CONSTRAINTS
+# ═══════════════════════════════════════════════════════════════════
+
+nuclear:
+  future_fixed:
+    exclude_scotland: false         # When true, remove fixed future nuclear in Scottish zones and renormalize the GB remainder
+  existing_asset_overrides:
+    retain_sites: []                # Optional site-name patterns to retain beyond normal phase-out filtering
+  siting_constraints:
+    enabled: true
+    scotland_ban: true                 # nuclear banned from Scotland
+
+    large_nuclear:
+      en6_sites_only: true
+      max_per_site_mw: 3400
+      scotland_ban: true
+
+    smr:
+      enabled: true
+      scotland_ban: false
+      allowed_anchor_ids: []           # Empty list = allow all eligible anchors after siting / land filtering
+      preserve_non_scottish_baseline: false  # When true, keep non-Scottish SMR anchor headroom unchanged and add Scottish anchors as extra local options
+      protected_tiers:                 # Hard exclusion (true) or skip (false) per tier
+        tier1: true                    # SAC/SPA/Ramsar/SSSI (excluding marine)
+        tier2: true                    # AONB/NatParks/NSA
+        tier3: true                    # Irreplaceable habitats
+        tier4: true                    # Historic environment
+      land_cover:                      # UK LCM 2024 habitat class codes (1–21)
+        exclusion_codes: [13, 14, 20, 21]  # Saltwater, Freshwater, Urban, Suburban
+      pop_density_criterion:
+        enabled: true
+      airfield_frz:
+        enabled: true
+      groundwater_protection:          # England & Wales only
+        exclusion_zones: [1, 2]        # SPZ zones to exclude (1→Band 1, 2/3→Band 2)
+      gas_pipe:
+        enabled: true
+        buffer: 100                    # m — buffer around high-pressure gas pipelines
+      comah:
+        enabled: true
+        buffer: 3000                   # m — buffer around COMAH Upper Tier sites
+      alc_bmv:
+        enabled: true                  # Soft constraint: BMV agricultural land
+      green_belt:
+        enabled: true                  # Soft constraint: Green Belt land
+      coastal_change_buffer: 3000      # m
+      flood_zones_enabled: true        # Flood zones 2 and 3
+      cooling_options: [once-through, evaporative, hybrid, dry-cooling]
+      cooling_water_source: [freshwater, wastewater, tidal, seawater]
+      water_constraint:
+        enabled: false                 # When false, all zones pass water availability
+      capacity_density: 300.0          # MW/km² — compact site-level density for anchor-based SMR land aggregation
+      min_site_area: 1                   # min site area sqkm
+      zone_threshold: 0.0                # SMR uses contiguous-site filtering; do not zero zones again by coarse zonal share
+
+# Reactor metadata scaffolding for nuclear-to-hydrogen and later heat use.
+# This does not yet change dispatch by itself; it annotates nuclear generators
+# so later solve-time heat extraction and nuclear-to-x coupling can reuse a
+# stable schema without refactoring the generator integration stage.
+nuclear_technologies:
+  default:
+    reactor_class: "Generic"
+    thermal_efficiency: 0.33
+    heat_extraction_max_low_fraction: 0.15
+    heat_extraction_max_high_fraction: 0.20
+    power_loss_per_mwth_low: 0.10
+    power_loss_per_mwth_high: 0.15
+    min_stable_fraction: 0.40
+  carriers:
+    nuclear:
+      reactor_class: "PWR"
+    PWR:
+      reactor_class: "PWR"
+    AGR:
+      reactor_class: "AGR"
+    BWR:
+      reactor_class: "BWR"
+    AMR:
+      reactor_class: "AMR"
+    SMR:
+      reactor_class: "SMR"
+    smr:
+      reactor_class: "SMR"
+
+# Nuclear-to-x solve-time interface scaffold.
+# Current active use:
+# - keeps a stable config surface for nuclear-to-hydrogen work
+# - enables the no-op solve hook used to preserve a future heat-coupling interface
+# Not yet active:
+# - explicit heat-extraction constraints
+# - district heat / industrial heat subsystems
+# - HTE / thermochemical coupling constraints
+nuclear_to_x:
+  enabled: false
+  hydrogen:
+    enabled: true
+    pathway: "lte"
+    heat_coupling_scaffold: true
+
+ccs: #tocode : Add CCS-specific siting constraints (e.g. proximity to storage sites, CO2 transport infrastructure)
+  siting_constraints:
+    enabled: false
+
+# ═══════════════════════════════════════════════════════════════════
+# HYDROGEN SITING CONSTRAINTS
+# ═══════════════════════════════════════════════════════════════════
+
+hydrogen:
+  network:
+    mode: "full"                         # Options: "full" (repo-local topology), "copperplate"
+    topology:
+      buses_path: "data/hydrogen/topology/buses.csv"
+      links_path: "data/hydrogen/topology/links.csv"
+      stores_path: "data/hydrogen/topology/store.csv"
+    coupling:
+      method: "nearest_h2_node"          # Electricity-side assets couple to nearest hydrogen node
+    capacity_bounds:
+      electrolysis: "fes_total"          # Use FES electrolysis totals as the build envelope
+      h2_turbine: "fes_generation"       # Use FES hydrogen generation capacity already integrated into the network
+      storage_multiplier: 2.0            # Max store expansion = imported e_nom × multiplier
+    costs:
+      electrolysis_capital_cost: 900.0   # Placeholder annualized capex; override per-scenario if needed
+      h2_turbine_capital_cost: 700.0     # Placeholder annualized capex; override per-scenario if needed
+      storage_capital_cost: 15.0         # Placeholder annualized capex per MWh_H2
+
+  explicit_demand:
+    enabled: false
+    annual_demand_twh: 12.0
+    profile: "flat"
+    nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes.csv"
+    unmet_demand_penalty_gbp_per_mwh: 15000.0
+
+  siting_constraints:
+    enabled: true
+
+    electrolysis:
+      protected_tiers:                    # Hard exclusion (true) or skip (false) per tier
+        tier1: true                       # SAC/SPA/Ramsar/SSSI (excluding marine)
+        tier2: true                       # AONB/NatParks/NSA
+        tier3: true                       # Irreplaceable habitats
+        tier4: true                       # Historic environment
+      land_cover:                         # UK LCM 2024 habitat class codes (1–21)
+        exclusion_codes: [13, 14, 20, 21] # Saltwater, Freshwater, Urban, Suburban
+      flooding:
+        enabled: true                     # Flood Zones 2, 3
+      coastal_change:
+        enabled: true
+      groundwater_protection:             # England & Wales only
+        exclusion_zones: [1, 2]           # SPZ zones to exclude (1→Band 1)
+      airfield:
+        mod: true                         # MoD aerodromes FRZ exclusion zone
+        civil: true                       # Civil protected aerodromes FRZ exclusion zone
+      alc_bmv:
+        enabled: true                      # Hard constraint: BMV agricultural land (Grades 1, 2, 3a)
+      green_belt:
+        enabled: true                      # Hard constraint: Green Belt land (England & Scotland)
+      gas_pipe:
+        enabled: true
+        buffer: 100                        # m — buffer around high-pressure gas pipelines
+      comah:
+        enabled: true
+        buffer: 3000                       # m — buffer around COMAH Upper Tier sites
+      capacity_density: 100                # MW/km²
+
+    h2_turbine:
+      protected_tiers:                     # Hard exclusion (true) or skip (false) per tier
+        tier1: true                        # SAC/SPA/Ramsar/SSSI (excluding marine)
+        tier2: true                        # AONB/NatParks/NSA
+        tier3: true                        # Irreplaceable habitats
+        tier4: true                        # Historic environment
+      land_cover:                          # UK LCM 2024 habitat class codes (1–21)
+        exclusion_codes: [13, 14, 20, 21]  # Saltwater, Freshwater, Urban, Suburban
+      flooding:
+        enabled: true                      # Flood Zones 2, 3
+      coastal_change:
+        enabled: true
+      groundwater_protection:              # England & Wales only
+        exclusion_zones: [1, 2]            # SPZ zones to exclude (1→Band 1)
+      airfield:
+        mod: true                          # MoD aerodromes FRZ exclusion zone
+        civil: true                        # Civil protected aerodromes FRZ exclusion zone
+      alc_bmv:
+        enabled: true                      # Hard constraint: BMV agricultural land (Grades 1, 2, 3a)
+      green_belt:
+        enabled: true                      # Hard constraint: Green Belt land (England & Scotland)
+      gas_pipe:
+        enabled: true
+        buffer: 100                        # m — buffer around high-pressure gas pipelines
+      comah:
+        enabled: true
+        buffer: 3000                       # m — buffer around COMAH Upper Tier sites
+      min_site: 0.03                       # min site area sqkm
+
+
+# ═══════════════════════════════════════════════════════════════════
+# TECHNICAL POTENTIAL CONSTRAINTS
+# ═══════════════════════════════════════════════════════════════════
+
+technical_potential_constraints:
+  enabled: false                    # Scenario-scoped switch: apply land-derived capacity caps before solve
+  min_modelled_year: 2025           # Safety: skip if modelled_year < this (historical scenarios)
+  supported_network_models: ["zonal"] # Only compatible future Zonal scenarios consume these caps
+  csv_path: "resources/land/technical_potential_Zonal.csv"  # Land pipeline output consumed by optimization
+
+# ═══════════════════════════════════════════════════════════════════
+# FUTURE CAPACITY CANDIDATES
+# ═══════════════════════════════════════════════════════════════════
+# Optional rollout mode for future land-linked capacity.
+# Existing live assets stay fixed; future FES capacity becomes extendable
+# candidate headroom per bus/zone or site/anchor.
+#
+# Current scope:
+# - land-linked renewables use fixed live baseline + extendable candidates
+# - future nuclear uses fixed live baseline + extendable large-nuclear / SMR candidates
+#
+# Technical-potential constraints then tighten those candidates in the policy
+# layer instead of only hitting the fixed fleet.
+
+future_capacity_candidates:
+  enabled: false
+  min_modelled_year: 2025
+  supported_network_models: ["zonal"]
+  carriers: ["wind_onshore", "wind_offshore", "solar_pv", "nuclear"]
+  capital_costs:
+    wind_onshore: 1200.0            # Placeholder workflow capex; override per-scenario for research runs
+    wind_offshore: 2500.0           # Placeholder workflow capex; override per-scenario for research runs
+    solar_pv: 700.0                 # Placeholder workflow capex; override per-scenario for research runs
+    nuclear: 8000.0                 # Placeholder large-nuclear capex for future-candidate workflow
+    smr: 9500.0                     # Placeholder SMR capex for future-candidate workflow
+  nuclear:
+    enabled: true
+    workbook_paths:
+      "2024": "data/FES/Future Energy Scenarios 2024 Data Workbook_V006_0.xlsx"
+      "2025": "data/FES/Future Energy Scenarios 2025 Data Workbook V005_0.xlsx"
+    en6_sites_path: "data/generators/nuclear_en6_sites.csv"
+    smr_anchors_path: "data/generators/smr_demand_anchors.csv"
+    smr_demand_weights:
+      electricity: 1.0
+      gas: 1.0
+
+# ═══════════════════════════════════════════════════════════════════
+# SCOTLAND — Zone Classification
+# ═══════════════════════════════════════════════════════════════════
+
+scotland:
+  zones: ["Z1_1", "Z1_2", "Z1_3", "Z1_4", Z2, Z3, Z4, Z5, Z6]  # Zonal network IDs for Scottish zones
+
+# ═══════════════════════════════════════════════════════════════════
+# CARBON BUDGET — Emission Constraints
+# ═══════════════════════════════════════════════════════════════════
+# Per-period CO₂e limits aligned with UK's 7th Carbon Budget.
+# This config surface is retained for future solve-time policy work, but the
+# current solve hook does NOT yet enforce a carbon-budget constraint.
+# Values are annual limits in MtCO₂e and can still be used as planning inputs.
+# The carbon_price in defaults.yaml remains the active economic signal today.
+
+carbon_budget:
+  enabled: true                   # Set false to disable emission constraints entirely
+  # Annual CO₂e limits by modelled year (MtCO₂e/yr)
+  # Based on UK 7th Carbon Budget trajectory to net zero by 2050
+  # These can be overridden per-scenario in scenarios.yaml
+  annual_limits:
+    2030: 230                     # ~6th Carbon Budget period (2033-2037 avg ≈ 190 MtCO₂e)
+    2035: 140                     # Between 6th and 7th budget periods
+    2040: 75                      # 7th Carbon Budget period (2038-2042)
+    2045: 30                      # Approaching net zero
+    2050: 0                       # Net zero target year
 
 # ──────────────────────────────────────────────────────────────────────────────
 # MARGINAL COST DEFAULTS (for future scenarios, modelled_year > 2024)
@@ -207,6 +465,64 @@ marginal_costs:
   use_fes_prices: true
 
 # ──────────────────────────────────────────────────────────────────────────────
+# SOLVER CONFIGURATION
+# ──────────────────────────────────────────────────────────────────────────────
+solver:
+  name: "gurobi"                  # Options: gurobi, highs, glpk, cplex
+  threads: 0                      # 0=use all threads made available to the solve rule at runtime
+  method: 2                       # 0=primal, 1=dual, 2=barrier
+  crossover: 0                    # 0=disabled (faster), -1=auto (enables crossover)
+  BarHomogeneous: 1               # 1=enable homogeneous barrier (handles numerical issues)
+  BarConvTol: 1.e-5
+  FeasibilityTol: 1.e-5           # Relaxed from 1.e-6 for numerical stability
+  OptimalityTol: 1.e-5            # Relaxed from 1.e-6 for numerical stability
+  NumericFocus: 2                 # 0-3, higher = more careful numerics (2=moderate)
+  ScaleFlag: 2                    # 0-3, automatic scaling (2=aggressive)
+  DualReductions: 0               # 0=disable (clearer error messages)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# MARKET / ECONOMIC DIAGNOSTICS
+# ──────────────────────────────────────────────────────────────────────────────
+# The core model remains a least-cost system optimisation. These settings add
+# transparent post-processing and optional, disabled-by-default sensitivity hooks
+# for market-style interpretation.
+market:
+  curtailment_payments:
+    enabled: false
+    # Use 0 for physical curtailment only; 40 and 80 GBP/MWh are the first
+    # moderate/high post-processing sensitivities for constraint-payment exposure.
+    default_gbp_per_mwh: 0.0
+    carrier_gbp_per_mwh: {}
+  objective_sensitivity:
+    enabled: false
+    renewable_marginal_cost_adder_gbp_per_mwh: 0.0
+    carrier_marginal_cost_adders_gbp_per_mwh: {}
+    eligible_carriers:
+      - wind_onshore
+      - wind_offshore
+      - solar_pv
+      - solar
+      - offwind-fixed-ac
+      - offwind-fixed-dc
+      - offwind-float-ac
+      - offwind-float-dc
+      - tidal_stream
+      - shoreline_wave
+
+# ──────────────────────────────────────────────────────────────────────────────
+# OPTIMIZATION MODE
+# ──────────────────────────────────────────────────────────────────────────────
+# LP (Linear Programming):    Fast (~minutes), no unit commitment
+# MILP (Mixed-Integer LP):    Slow (~hours), full unit commitment constraints
+solve_mode: "LP"                # Options: "LP" or "MILP"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# SOLVE PERIOD (full year by default)
+# ──────────────────────────────────────────────────────────────────────────────
+solve_period:
+  enabled: false                  # Set true to solve subset of year
+
+# ──────────────────────────────────────────────────────────────────────────────
 # LOGGING
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -214,179 +530,3 @@ logging:
   level: "INFO"                     # DEBUG, INFO, WARNING, ERROR, CRITICAL
   log_to_file: true
   log_directory: "logs"
-
-# ──────────────────────────────────────────────────────────────────────────────
-# DEMAND DISAGGREGATION (optional, disabled by default)
-# ──────────────────────────────────────────────────────────────────────────────
-# When enabled in a scenario, components are disaggregated from total demand.
-# Defaults prefer FES-based fractions and GSP spatial allocation for future scenarios.
-
-demand_disaggregation:
-  enabled: false
-  components:
-    - name: "heat_pumps"
-      allocation_method: "fes_gsp"
-      use_fes_fraction: true
-      min_gwh_threshold: 0.01
-    - name: "electric_vehicles"
-      allocation_method: "fes_gsp"
-      use_fes_fraction: true
-      min_gwh_threshold: 0.01
-
-# ──────────────────────────────────────────────────────────────────────────────
-# DEMAND-SIDE FLEXIBILITY
-# ──────────────────────────────────────────────────────────────────────────────
-# Model demand-side flexibility from heat pumps, EVs, and demand response.
-# Each flexibility type can be independently enabled/disabled.
-# Requires demand_disaggregation to be enabled for HP and EV components.
-
-demand_flexibility:
-  # Master switch - must be true for any flexibility to be modeled
-  enabled: false
-
-  # HEAT PUMP FLEXIBILITY (independently toggleable)
-  # Requires heat_pumps in demand_disaggregation.components
-  heat_pumps:
-    enabled: false                    # Independent toggle for HP flexibility
-    mode: "MIXED"                     # TANK, COSY, or MIXED (use mix shares below)
-    flex_share: 0.2                   # Fraction of HP demand that is flexible
-    mix:
-      tank_share: 0.5                 # Fraction of flexible HP demand using TANK mode
-      cosy_share: 0.5                 # Fraction of flexible HP demand using COSY mode
-    # Spatial allocation
-    urban_weight: 1.5                      # Power exponent for urban-weighted allocation (>1 = more urban)
-    peak_thermal_kw_per_dwelling: 10.0     # Assumed peak thermal output per dwelling (kW)
-    link_sizing_margin: 1.5                # Margin factor for HP link capacity (1.5 = 50% headroom)
-    # COSY mode: Pre-heating using building thermal mass
-    cosy:
-      morning_window: ["07:00", "09:00"]   # Morning pre-heat window
-      evening_window: ["17:00", "19:00"]   # Evening pre-heat window
-      max_temp_deviation_celsius: 2.0      # Max comfort deviation (±°C)
-      thermal_mass_hours: 0.3              # Hours of heating that can be stored in building fabric
-                                           # Based on ~2.7 kWh/dwelling at ~10 kW peak thermal
-      standing_loss_per_hour: 0.05         # Building thermal loss rate (5%/hour, faster than tank)
-    # TANK mode: Hot water tank storage
-    tank:
-      volume_liters: 200              # Average tank volume
-      temp_range: [50, 65]            # Min/max temperature (°C)
-      standing_loss_per_hour: 0.01    # Heat loss fraction per hour (1%)
-      heater_power_kw: 3.0            # Immersion heater power
-
-  # ELECTRIC VEHICLE FLEXIBILITY (independently toggleable)
-  # Requires electric_vehicles in demand_disaggregation.components
-  # 
-  # EV flexibility modeling uses FES building blocks:
-  #   - Dem_BB006: EV domestic charging demand (GWh)
-  #   - Dem_BB007: EV non-domestic charging demand (GWh)
-  #   - Srg_BB005: V2G availability (MW) - used for V2G and MIXED modes
-  #   - Srg_BB007a: Smart charging availability (MW) - used for MIXED mode
-  #
-  # Without flexibility, EVs are simple Load components with evening-peak profile.
-  # With flexibility, Store + Link components enable charging optimization.
-  electric_vehicles:
-    enabled: false                    # Independent toggle for EV flexibility
-    tariff: "MIXED"                     # GO, INT, V2G, or MIXED (see modes below)
-    
-    # Flex share: Fraction of EV demand that participates in flexibility
-    # Controls DEMAND SPLIT: 20% → smart charging, 80% → dumb loads
-    # 1.0 = all EVs are flexible, 0.2 = only 20% of EV demand uses smart charging
-    flex_share: 0.2
-
-    # Fleet characteristics (affect storage/charger sizing)
-    battery_capacity_kwh: 60.0        # Average EV battery size (kWh)
-    charge_efficiency: 0.90           # Grid-to-battery efficiency
-    flexibility_participation: 0.10   # Fraction of fleet participating in smart charging
-
-    # Spatial allocation and fleet sizing
-    urban_weight: 2.0                 # Power exponent for urban-weighted allocation (>1 = more urban)
-    energy_per_vehicle_kwh_per_day: 10.0  # Assumed daily energy consumption per vehicle (kWh)
-    charging_hours_per_day: 4.0       # Assumed charging hours/day (for FES share calculation)
-    min_share_threshold: 0.001        # Minimum tariff share to create components
-    
-    # GO tariff: Octopus Go style fixed night window
-    # Simple time-of-use tariff with cheap overnight rates
-    # Charging is incentivized during window via cost differential,
-    # but charging CAN still occur outside window if needed (at higher cost)
-    go:
-      window: ["00:00", "04:00"]      # Cheap charging window (4 hours)
-      window_cost: 0.0                # Marginal cost during cheap window (£/MWh)
-      offpeak_cost: 100.0             # Marginal cost outside window (£/MWh)
-    
-    # INT tariff: Intelligent/smart charging - fully optimizable
-    # Charging can be shifted across all hours when plugged in
-    int:
-      min_soc: 0.20                   # Minimum SOC (range anxiety buffer)
-      target_departure_soc: 0.80      # Target SOC at departure time (7am)
-      charger_power_kw: 7.0           # Home charger power (kW)
-    
-    # V2G: Vehicle-to-grid bidirectional
-    # EVs can discharge back to grid for additional flexibility
-    # V2G capacity sources (in order of priority):
-    #   1. FES Srg_BB005 if use_fes_capacity: true (distributed by EV demand)
-    #   2. Calculated from fleet × participation_rate × charger_power
-    v2g:
-      participation_rate: 0.30        # Fraction of flexible fleet with V2G (if not using FES)
-      discharge_efficiency: 0.90      # Battery-to-grid efficiency
-      max_discharge_soc: 0.80         # Don't discharge below 20% SOC
-      degradation_cost_per_mwh: 50.0  # Battery wear cost (£/MWh)
-      use_fes_capacity: true          # Use FES Srg_BB005 V2G capacity (17.9 GW for HT 2035)
-    
-    # MIXED mode: Split EV fleet across GO, INT, and V2G tariffs
-    # This provides a realistic mix of charging behaviors
-    # Shares are calculated from FES data or can be manually overridden
-    mixed:
-      # Share calculation mode:
-      #   "fes" - Use FES building blocks to calculate shares (recommended)
-      #   "manual" - Use the shares defined below
-      mode: "fes"
-      
-      # Manual share overrides (used if mode: "manual" or FES data unavailable)
-      # Must sum to 1.0
-      go_share: 0.30                  # 30% on Octopus Go style (fixed window)
-      int_share: 0.50                 # 50% on intelligent smart charging
-      v2g_share: 0.20                 # 20% with V2G capability
-      
-      # FES-derived share options (used if mode: "fes")
-      # V2G share is derived from FES Srg_BB005 (V2G MW) / total EV charging capacity
-      # INT share is the remaining smart charging capacity from FES Srg_BB007a
-      # GO share is the remainder (non-smart charging EVs)
-      fes_share_overrides:
-        # Optional: Override specific shares even in FES mode
-        # Uncomment to fix a share while others adjust
-        # go_share: 0.20              # Force 20% GO, rest from FES
-        # v2g_share: null             # null = use FES value
-    
-    # Availability profile parameters (from GB traffic patterns)
-    # EVs available for charging when parked (inversely related to traffic)
-    availability:
-      avail_max: 0.95                 # Max fraction plugged in (overnight)
-      avail_mean: 0.80                # Mean fraction plugged in
-      departure_hour: 7               # Morning departure time for DSM constraint
-
-  # EVENT RESPONSE / DEMAND RESPONSE (independently toggleable)
-  # Saving Sessions style demand response events - DOMESTIC DSR only
-  # This represents households reducing demand during peak periods
-  event_response:
-    enabled: false                    # Independent toggle for event response
-    
-    # EVENT FREQUENCY MODES (choose one):
-    #   "regular"  - 2 events/week YEAR-ROUND (baseline flexibility, constant participation)
-    #   "winter"   - 5 events/week Oct-Mar ONLY, 0 events Apr-Sep (crisis mode, winter peaks)
-    #   "both"     - 2 events/week year-round + extra 5 events/week during Oct-Mar (realistic mix)
-    mode: "both"
-    events_per_week_regular: 2          # Events per week in regular/both modes
-    events_per_week_winter: 5           # Events per week in winter/both modes
-    
-    # Event Window Options (choose one, realistic alternatives):
-    #   ["17:00", "19:00"]  - Evening peak only (tight window, high utilization)
-    #   ["16:00", "20:00"]  - Extended evening (covers demand ramp-up)
-    #   ["07:00", "22:00"]  - Full day flexibility (most realistic for modern DSR)
-    event_window: ["07:00", "22:00"]  # Default: evening peak window
-    
-    dsr_capacity_mw: null             # User-defined domestic DSR capacity (MW)
-    # If dsr_capacity_mw is set: Uses that value directly
-    # If null: Calculates from participation_rate * max_reduction_fraction * demand
-    participation_rate: 0.33          # Fallback: participation rate (33%)
-    max_reduction_fraction: 0.10      # Fallback: max demand reduction per event (10%)
-    marginal_cost: 100.0              # DSR incentive payment (£/MWh) - high cost = only dispatch if needed
-    winter_months: [10, 11, 12, 1, 2, 3]  # Oct-Mar for winter mode

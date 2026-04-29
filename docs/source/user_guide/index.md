@@ -8,6 +8,7 @@ This section provides comprehensive documentation for using PyPSA-GB. PyPSA-GB i
 workflow
 configuration
 scenarios
+location_constraints
 network_models
 clustering
 demand_flexibility

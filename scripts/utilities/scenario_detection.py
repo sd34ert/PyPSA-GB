@@ -17,6 +17,19 @@ from pathlib import Path
 from datetime import datetime
 import logging
 import os
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+CONFIG_DIR = PROJECT_ROOT / "config"
+if str(CONFIG_DIR) not in sys.path:
+    sys.path.insert(0, str(CONFIG_DIR))
+
+try:
+    from config_loader import load_config as _load_full_config
+    from config_loader import validate_scenario as _validate_merged_scenario
+except Exception:
+    _load_full_config = None
+    _validate_merged_scenario = None
 
 logger = logging.getLogger(__name__)
 
@@ -152,25 +165,37 @@ def validate_scenario_complete(scenario_dict):
     errors = []
     warnings = []
     info = []
+    scenario_id = scenario_dict.get("_scenario_id", "unknown")
     
     # Get year (try both field names)
     year = scenario_dict.get("modelled_year") or scenario_dict.get("year")
-    
-    # Determine type and validate accordingly
+
+    # Use config_loader.py as the single source of truth for hard validation.
+    if _validate_merged_scenario is not None:
+        errors.extend(_validate_merged_scenario(scenario_dict))
+    else:
+        # Fallback for unusual standalone contexts where config_loader import fails.
+        if is_historical_scenario(year):
+            _, hist_errors, hist_warnings = validate_historical_scenario(scenario_dict, scenario_id)
+            errors.extend(hist_errors)
+            warnings.extend(hist_warnings)
+        else:
+            _, fut_errors, fut_warnings = validate_future_scenario(scenario_dict, scenario_id)
+            errors.extend(fut_errors)
+            warnings.extend(fut_warnings)
+
+        if "network_model" in scenario_dict:
+            model = scenario_dict["network_model"]
+            if model not in ["ETYS", "Reduced", "Zonal"]:
+                errors.append(f"Invalid network_model '{model}'")
+
+    # Keep lightweight warnings/info in this module.
     if is_historical_scenario(year):
-        valid, hist_errors, hist_warnings = validate_historical_scenario(scenario_dict, "unknown")
-        errors.extend(hist_errors)
+        _, _, hist_warnings = validate_historical_scenario(scenario_dict, scenario_id)
         warnings.extend(hist_warnings)
     else:
-        valid, fut_errors, fut_warnings = validate_future_scenario(scenario_dict, "unknown")
-        errors.extend(fut_errors)
+        _, _, fut_warnings = validate_future_scenario(scenario_dict, scenario_id)
         warnings.extend(fut_warnings)
-    
-    # Common validation
-    if "network_model" in scenario_dict:
-        model = scenario_dict["network_model"]
-        if model not in ["ETYS", "Reduced", "Zonal"]:
-            errors.append(f"Invalid network_model '{model}'")
     
     return {
         "errors": errors,
@@ -277,22 +302,21 @@ def validate_all_active_scenarios(config_path, scenarios_path, check_files=True,
     Returns:
         dict: Validation result with 'valid' (bool) and 'summary' (dict)
     """
-    import yaml
-    
-    # Load configs
+    if _load_full_config is None:
+        if verbose:
+            print("Error loading config files: config_loader import unavailable")
+        return {'valid': False, 'summary': {'total_errors': 1}}
+
     try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f) or {}
-        with open(scenarios_path, 'r', encoding='utf-8') as f:
-            scenarios_yaml = yaml.safe_load(f) or {}
+        config_dir = Path(config_path).parent
+        merged_config = _load_full_config(config_dir)
     except Exception as e:
         if verbose:
             print(f"Error loading config files: {e}")
         return {'valid': False, 'summary': {'total_errors': 1}}
-        
-    active_scenarios = config.get('run_scenarios', [])
-    # scenarios.yaml has scenarios at top level (not nested under 'scenarios' key)
-    scenarios_def = scenarios_yaml
+
+    active_scenarios = merged_config.get('run_scenarios', [])
+    scenarios_def = merged_config.get("scenarios", {})
     
     total_errors = 0
     total_warnings = 0
@@ -316,11 +340,11 @@ def validate_all_active_scenarios(config_path, scenarios_path, check_files=True,
         if errors:
             total_errors += len(errors)
             if verbose:
-                print(f"❌ Scenario '{scenario_id}': {len(errors)} errors")
+                print(f"[ERROR] Scenario '{scenario_id}': {len(errors)} errors")
                 for err in errors:
                     print(f"  - {err}")
         elif verbose:
-            print(f"✅ Scenario '{scenario_id}': Valid")
+            print(f"[OK] Scenario '{scenario_id}': Valid")
             
         if warnings:
             total_warnings += len(warnings)
@@ -331,10 +355,14 @@ def validate_all_active_scenarios(config_path, scenarios_path, check_files=True,
         # File checks (basic implementation)
         if check_files:
             # Check cutout
-            year = scenario_config.get("modelled_year") or scenario_config.get("year")
-            if year and not check_cutout_availability(year):
+            cutout_year = (
+                scenario_config.get("modelled_year")
+                if is_historical_scenario(scenario_config)
+                else scenario_config.get("renewables_year")
+            )
+            if cutout_year and not check_cutout_availability(cutout_year):
                 if verbose:
-                    print(f"  - ERROR: Weather cutout for year {year} not found")
+                    print(f"  - ERROR: Weather cutout for year {cutout_year} not found")
                 total_errors += 1
 
     return {

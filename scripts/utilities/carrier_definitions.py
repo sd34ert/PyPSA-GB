@@ -291,6 +291,20 @@ def get_carrier_definitions():
             'max_growth': float('inf'),
             'max_relative_growth': 0.0
         },
+        'smr': {
+            'color': '#E6550D',  # Deep orange
+            'nice_name': 'Small Modular Reactor',
+            'co2_emissions': 0.0,
+            'max_growth': float('inf'),
+            'max_relative_growth': 0.0
+        },
+        'SMR': {
+            'color': '#E6550D',  # Deep orange
+            'nice_name': 'Small Modular Reactor',
+            'co2_emissions': 0.0,
+            'max_growth': float('inf'),
+            'max_relative_growth': 0.0
+        },
         
         # Hydrogen and Fuel Cells
         'H2': {
@@ -325,6 +339,13 @@ def get_carrier_definitions():
             'color': '#FF1493',  # Deep pink
             'nice_name': 'H2 Power Generation',
             'co2_emissions': 0.0,  # Zero emissions (hydrogen fuel)
+            'max_growth': float('inf'),
+            'max_relative_growth': 0.0
+        },
+        'H2 pipeline': {
+            'color': '#00CED1',  # Dark turquoise
+            'nice_name': 'Hydrogen Pipeline',
+            'co2_emissions': 0.0,
             'max_growth': float('inf'),
             'max_relative_growth': 0.0
         },

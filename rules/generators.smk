@@ -42,9 +42,10 @@ resources_path = "resources"
 data_path = "data"
 
 # ══════════════════════════════════════════════════════════════════════════════
-# RULE ORDER: Prefer new REPD-only rule over legacy TEC-based rule
+# RULE ORDER: Prefer the comprehensive dispatchable-site rule when both can
+# satisfy the same site CSV outputs.
 # ══════════════════════════════════════════════════════════════════════════════
-ruleorder: extract_repd_dispatchable_sites > prepare_dispatchable_generator_sites
+ruleorder: prepare_dispatchable_generator_sites > extract_repd_dispatchable_sites
 
 # ══════════════════════════════════════════════════════════════════════════════
 # HELPER FUNCTIONS FOR HYBRID DATA ROUTING (DUKES/FES)
@@ -127,6 +128,26 @@ def get_renewable_data_sources(wildcards):
         # Still need profiles for capacity factors
     
     return inputs
+
+
+def _should_enable_future_capacity_candidates(scenario_config):
+    candidate_config = scenario_config.get("future_capacity_candidates", {})
+    if not candidate_config.get("enabled", False):
+        return False
+
+    min_year = candidate_config.get("min_modelled_year", 2025)
+    if scenario_config.get("modelled_year", 2020) < min_year:
+        return False
+
+    supported = candidate_config.get("supported_network_models", ["zonal"])
+    network_model = scenario_config.get("network_model", "Zonal").lower()
+    return network_model in [model.lower() for model in supported]
+
+
+def _get_technical_potential_csv_path_for_candidates(scenario_config):
+    return scenario_config.get("technical_potential_constraints", {}).get(
+        "csv_path", f"{resources_path}/land/technical_potential_Zonal.csv"
+    )
 
 
 def get_renewable_profiles(wildcards):
@@ -735,13 +756,22 @@ rule add_renewables_to_network:
         shoreline_wave_sites=f"{resources_path}/renewable/shoreline_wave_sites.csv",
         tidal_lagoon_sites=f"{resources_path}/renewable/tidal_lagoon_sites.csv",
         # FES data (for future scenarios - use function to get conditional path)
-        fes_data=lambda wildcards: f"{resources_path}/FES/FES_{scenarios[wildcards.scenario].get('FES_year', 2025)}_data.csv" if not is_historical_scenario(scenarios[wildcards.scenario]) else []
+        fes_data=lambda wildcards: f"{resources_path}/FES/FES_{scenarios[wildcards.scenario].get('FES_year', 2025)}_data.csv" if not is_historical_scenario(scenarios[wildcards.scenario]) else [],
+        technical_potential=lambda wildcards: (
+            _get_technical_potential_csv_path_for_candidates(scenarios[wildcards.scenario])
+            if _should_enable_future_capacity_candidates(scenarios[wildcards.scenario])
+            else []
+        )
     output:
         network=f"{resources_path}/network/{{scenario}}_network_demand_renewables.pkl",
-        summary=f"{resources_path}/generators/{{scenario}}_renewables_summary.csv"
+        summary=f"{resources_path}/generators/{{scenario}}_renewables_summary.csv",
+        future_capacity_report=f"{resources_path}/generators/{{scenario}}_renewable_candidate_oversubscription.csv"
     params:
         scenario_config=lambda wildcards: scenarios.get(wildcards.scenario, {}),
-        is_historical=lambda wildcards: is_historical_scenario(scenarios.get(wildcards.scenario, {}))
+        is_historical=lambda wildcards: is_historical_scenario(scenarios.get(wildcards.scenario, {})),
+        future_capacity_candidates_config=lambda wildcards: scenarios.get(wildcards.scenario, {}).get(
+            "future_capacity_candidates", {}
+        )
     log:
         "logs/integrate_renewable_generators_{scenario}.log"
     benchmark:
@@ -865,6 +895,8 @@ rule add_thermal_generators_to_network:
     input:
         unpack(get_generator_data_sources),  # Conditional: DUKES for historical, FES for future
         network=f"{resources_path}/network/{{scenario}}_network_demand_renewables.pkl",
+        renewable_future_capacity_report=f"{resources_path}/generators/{{scenario}}_renewable_candidate_oversubscription.csv",
+        nuclear_sites=f"{resources_path}/generators/sites/nuclear_sites.csv",
         # Dispatchable renewable thermal sites (from REPD - historical scenarios only)
         biomass_sites=f"{resources_path}/generators/sites/biomass_sites.csv",
         waste_to_energy_sites=f"{resources_path}/generators/sites/waste_to_energy_sites.csv",
@@ -873,13 +905,22 @@ rule add_thermal_generators_to_network:
         sewage_gas_sites=f"{resources_path}/generators/sites/sewage_gas_sites.csv",
         advanced_biofuel_sites=f"{resources_path}/generators/sites/advanced_biofuel_sites.csv",
         geothermal_sites=f"{resources_path}/generators/sites/geothermal_sites.csv",
+        technical_potential=lambda wildcards: (
+            _get_technical_potential_csv_path_for_candidates(scenarios[wildcards.scenario])
+            if _should_enable_future_capacity_candidates(scenarios[wildcards.scenario])
+            else []
+        ),
         # Generator characteristics database
         fuel_data=f"{data_path}/generators/generator_data_by_fuel.csv"
     output:
         network=f"{resources_path}/network/{{scenario}}_network_demand_renewables_thermal.pkl",
-        summary=f"{resources_path}/generators/{{scenario}}_thermal_summary.csv"
+        summary=f"{resources_path}/generators/{{scenario}}_thermal_summary.csv",
+        future_capacity_report=f"{resources_path}/generators/{{scenario}}_future_capacity_oversubscription.csv"
     params:
-        scenario_config=lambda wildcards: scenarios[wildcards.scenario]
+        scenario_config=lambda wildcards: scenarios[wildcards.scenario],
+        future_capacity_candidates_config=lambda wildcards: scenarios.get(wildcards.scenario, {}).get(
+            "future_capacity_candidates", {}
+        )
     log:
         "logs/integrate_thermal_generators_{scenario}.log"
     benchmark:
@@ -974,7 +1015,7 @@ rule apply_marginal_costs_to_network:
     In config/scenarios.yaml (scenario-specific override):
         My_Scenario:
           modelled_year: 2035
-          FES_year: 2024
+          FES_year: 2025
           marginal_costs:
             carbon_price: 150.0           # Override carbon price
             fuel_prices:
@@ -1023,16 +1064,16 @@ rule apply_marginal_costs_to_network:
     input:
         network=f"{resources_path}/network/{{scenario}}_network_demand_renewables_thermal_generators.pkl",
         # Optional: FES price inputs for future scenarios (>2024)
-        fuel_prices=lambda w: f"{resources_path}/marginal_costs/fuel_prices_{scenarios[w.scenario].get('FES_year', 2024)}.csv" if scenarios[w.scenario].get('modelled_year', 2020) > 2024 and scenarios[w.scenario].get('FES_year') else [],
-        carbon_prices=lambda w: f"{resources_path}/marginal_costs/carbon_prices_{scenarios[w.scenario].get('FES_year', 2024)}.csv" if scenarios[w.scenario].get('modelled_year', 2020) > 2024 and scenarios[w.scenario].get('FES_year') else []
+        fuel_prices=lambda w: f"{resources_path}/marginal_costs/fuel_prices_{scenarios[w.scenario].get('FES_year', 2025)}.csv" if scenarios[w.scenario].get('modelled_year', 2020) > 2024 and scenarios[w.scenario].get('FES_year') else [],
+        carbon_prices=lambda w: f"{resources_path}/marginal_costs/carbon_prices_{scenarios[w.scenario].get('FES_year', 2025)}.csv" if scenarios[w.scenario].get('modelled_year', 2020) > 2024 and scenarios[w.scenario].get('FES_year') else []
     output:
         network=f"{resources_path}/network/{{scenario}}_network_demand_renewables_thermal_generators_costs.pkl",
         marginal_costs_csv=f"{resources_path}/generators/{{scenario}}_marginal_costs_breakdown.csv"
     params:
         scenario_config=lambda w: scenarios[w.scenario],
         # Optional: Pass FES price file paths to script for dynamic price loading
-        fuel_price_file=lambda w: f"{resources_path}/marginal_costs/fuel_prices_{scenarios[w.scenario].get('FES_year', 2024)}.csv" if scenarios[w.scenario].get('modelled_year', 2020) > 2024 and scenarios[w.scenario].get('FES_year') else None,
-        carbon_price_file=lambda w: f"{resources_path}/marginal_costs/carbon_prices_{scenarios[w.scenario].get('FES_year', 2024)}.csv" if scenarios[w.scenario].get('modelled_year', 2020) > 2024 and scenarios[w.scenario].get('FES_year') else None
+        fuel_price_file=lambda w: f"{resources_path}/marginal_costs/fuel_prices_{scenarios[w.scenario].get('FES_year', 2025)}.csv" if scenarios[w.scenario].get('modelled_year', 2020) > 2024 and scenarios[w.scenario].get('FES_year') else None,
+        carbon_price_file=lambda w: f"{resources_path}/marginal_costs/carbon_prices_{scenarios[w.scenario].get('FES_year', 2025)}.csv" if scenarios[w.scenario].get('modelled_year', 2020) > 2024 and scenarios[w.scenario].get('FES_year') else None
     log:
         "logs/marginal_costs_{scenario}.log"
     benchmark:
@@ -1132,6 +1173,17 @@ rule add_generators:
         echo "Generator integration pipeline complete" > {output.ready}
         echo "(Using 3-stage modular approach)" >> {output.ready}
         """
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TECHNICAL POTENTIAL CONSTRAINTS
+# ══════════════════════════════════════════════════════════════════════════════
+# Technical-potential constraints
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Technical-potential constraints now live in rules/policy.smk so they operate
+# on the fully assembled network after storage, nuclear metadata, hydrogen, and
+# interconnectors have already been added.
 
 
 # =============================================================================

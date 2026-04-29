@@ -1,5 +1,5 @@
 # ==============================================================================
-# PyPSA-GB: Energy System Model for Great Britain
+# PyPSA-GB: Whole-System Workflow for Great Britain
 # ==============================================================================
 """
 MAIN WORKFLOW
@@ -10,8 +10,12 @@ This workflow assumes weather cutouts already exist and focuses on:
   * Network clustering (spatial/k-means)
   * Demand processing and disaggregation
   * Generator integration (DUKES + REPD + FES - historical vs future routing)
+  * Future-capacity candidates for land-linked renewables and nuclear
   * Storage integration (REPD)
+  * Nuclear metadata scaffolding for nuclear-to-x work
+  * Full hydrogen-network integration for nuclear-to-hydrogen studies
   * Interconnector mapping
+  * Post-assembly policy adjustments (for example land-derived caps)
   * Validation and visualization
 
 PREREQUISITES:
@@ -75,15 +79,15 @@ if config.get("scenario"):
     print(f"Using command-line scenario: {config['scenario']}")
 else:
     # Use scenarios from config.yaml run_scenarios list
-    run_ids = config["run_scenarios"] 
+    run_ids = config["run_scenarios"]
     print(f"Using config file scenarios: {run_ids}")
 
 print(f"Active scenarios: {run_ids}")
 
-# Validate scenario IDs exist in scenarios_master.yaml
+# Validate scenario IDs exist in scenarios.yaml
 unknown = set(run_ids) - set(scenarios)
 if unknown:
-    raise ValueError(f"Unknown scenario IDs: {unknown}. Check scenarios_master.yaml for valid IDs.")
+    raise ValueError(f"Unknown scenario IDs: {unknown}. Check scenarios.yaml for valid IDs.")
 
 # ------------------------------------------------------------------------------
 # SCENARIO AUTO-CONFIGURATION AND VALIDATION
@@ -104,18 +108,18 @@ validation_info = []
 for rid in run_ids:
     # Auto-configure with metadata
     enhanced_scenarios[rid] = auto_configure_scenario(scenarios[rid])
-    
+
     # Complete validation (includes data freshness checks)
     validation_result = validate_scenario_complete(scenarios[rid])
-    
+
     # Collect errors (critical issues)
     if validation_result['errors']:
         validation_errors.extend([(rid, err) for err in validation_result['errors']])
-    
+
     # Collect warnings (non-critical issues)
     if validation_result['warnings']:
         validation_warnings.extend([(rid, warn) for warn in validation_result['warnings']])
-    
+
     # Collect info messages (data freshness, etc.)
     if validation_result.get('info'):
         validation_info.extend([(rid, info) for info in validation_result['info']])
@@ -169,14 +173,21 @@ print()
 # HELPER FUNCTIONS
 # ------------------------------------------------------------------------------
 
+# Set constrained output path for single scenario run
+if len(run_ids) == 1:
+    scenario = run_ids[0]
+    constrained_output_path = f"resources/network/{scenario}_network_constrained.nc"
+else:
+    constrained_output_path = "resources/network/{scenario}_network_constrained.nc"
+
 def extract_from_scenarios(key):
     """
     Extract unique values for a given key from all active scenarios.
     Skips scenarios that don't have the specified key.
-    
+
     Args:
         key (str): Configuration key to extract (e.g., 'demand_year', 'network_model')
-    
+
     Returns:
         list: Sorted list of unique values
     """
@@ -191,7 +202,7 @@ def extract_fes_years():
     """
     Extract FES years only from future scenarios that need them.
     Historical scenarios are excluded automatically.
-    
+
     Returns:
         list: Sorted list of FES years needed
     """
@@ -252,10 +263,10 @@ def extract_flexibility_configs():
 def get_base_network_file(network_model):
     """
     Get the path to the base network file for a given network model.
-    
+
     Args:
         network_model (str): Network model name (ETYS, Reduced, Zonal)
-    
+
     Returns:
         str: Path to base network NetCDF file
     """
@@ -265,10 +276,10 @@ def get_base_network_file(network_model):
 def get_base_demand_file(network_model):
     """
     Get the path to the base demand file for a given network model.
-    
+
     Args:
         network_model (str): Network model name (ETYS, Reduced, Zonal)
-    
+
     Returns:
         str: Path to base demand NetCDF file
     """
@@ -279,7 +290,7 @@ def get_network_outputs():
     """
     Generate list of network output files for all scenarios.
     Includes base networks and clustered networks if clustering is enabled.
-    
+
     Returns:
         list: Paths to all network output files
     """
@@ -290,7 +301,7 @@ def get_network_outputs():
             get_base_network_file(network_model),
             get_base_demand_file(network_model)
         ])
-        
+
         # Add clustered network outputs if clustering is enabled
         clustering_config = scenarios[rid].get("clustering", None)
         clustering_enabled = False
@@ -303,7 +314,7 @@ def get_network_outputs():
                 clustering_enabled = 'method' in clustering_config
         if clustering_enabled:
             outputs.append(f"{resources_path}/network/{network_model}_clustered_{rid}.nc")
-            
+
     return outputs
 
 # ------------------------------------------------------------------------------
@@ -355,10 +366,16 @@ include: "rules/demand.smk"               # CONSOLIDATED: Base demand + disaggre
 include: "rules/FES.smk"                  # Future Energy Scenarios data
 include: "rules/generators.smk"           # Generator integration (DUKES/REPD/FES - historical vs future routing)
 include: "rules/storage.smk"              # Energy storage integration (battery, pumped hydro, CAES, LAES)
-include: "rules/hydrogen.smk"             # Hydrogen system (electrolysis, H2 storage, H2 turbines)
+include: "rules/nuclear.smk"              # Nuclear metadata scaffolding for nuclear-to-hydrogen work
+include: "rules/hydrogen.smk"             # Hydrogen system (full H2 network / electrolysis / H2 turbines)
 include: "rules/interconnectors.smk"      # Cross-border interconnections
+include: "rules/policy.smk"               # Post-assembly policy layer (technical potential constraints)
 include: "rules/solve.smk"                # Network finalization and optimization
 include: "rules/analysis.smk"             # Post-solve analysis: spatial plots, dashboards, notebooks
+include: "rules/land_constraints.smk"     # Kate - land constraints rules
+
+
+
 
 # ------------------------------------------------------------------------------
 # FINAL TARGET CONSTRUCTION
@@ -375,7 +392,7 @@ network_targets = []
 
 # Final fully-assembled networks (with all components) for each scenario
 network_targets += expand(
-    f"{resources_path}/network/{{scenario}}_network_demand_renewables_thermal_generators_storage_hydrogen_interconnectors.nc",
+    f"{resources_path}/network/{{scenario}}_network_demand_renewables_thermal_generators_storage_nuclear_hydrogen_interconnectors.nc",
     scenario=run_ids
 )
 
@@ -401,7 +418,7 @@ for rid in run_ids:
     else:
         clustering_enabled = False
     if clustering_enabled:
-        clustered_network_path = f"{resources_path}/network/{rid}_network_clustered_demand_renewables_thermal_generators_storage_hydrogen_interconnectors.nc"
+        clustered_network_path = f"{resources_path}/network/{rid}_network_clustered_demand_renewables_thermal_generators_storage_nuclear_hydrogen_interconnectors.nc"
 
         # Clustered network outputs
         network_targets.append(clustered_network_path)
@@ -422,29 +439,29 @@ generator_targets = []
 
 # Per-scenario generator integration
 generator_targets += expand(
-    f"{resources_path}/network/{{scenario}}_network_demand_renewables_thermal.pkl", 
+    f"{resources_path}/network/{{scenario}}_network_demand_renewables_thermal.pkl",
     scenario=run_ids
 )
 generator_targets += expand(
-    f"{resources_path}/generators/{{scenario}}_generators_full.csv", 
+    f"{resources_path}/generators/{{scenario}}_generators_full.csv",
     scenario=run_ids
 )
 generator_targets += expand(
-    f"{resources_path}/generators/{{scenario}}_generators_summary_by_carrier.csv", 
+    f"{resources_path}/generators/{{scenario}}_generators_summary_by_carrier.csv",
     scenario=run_ids
 )
 generator_targets += expand(
-    f"{resources_path}/generators/{{scenario}}_technology_capacity_summary.csv", 
+    f"{resources_path}/generators/{{scenario}}_technology_capacity_summary.csv",
     scenario=run_ids
 )
 generator_targets += expand(
-    f"{resources_path}/generators/{{scenario}}_generator_integration_report.txt", 
+    f"{resources_path}/generators/{{scenario}}_generator_integration_report.txt",
     scenario=run_ids
 )
 
 # Network CSV export (for external analysis)
 # generator_targets += expand(
-#     f"{resources_path}/network/csv/{{scenario}}_base_demand_generators/export_complete.txt", 
+#     f"{resources_path}/network/csv/{{scenario}}_base_demand_generators/export_complete.txt",
 #     scenario=run_ids
 # )
 
@@ -456,15 +473,15 @@ renewable_targets = []
 
 # Renewable profiles organized by renewables_year (not scenario)
 renewable_targets += expand(
-    f"{resources_path}/renewable/profiles/wind_offshore_{{renewables_year}}.csv", 
+    f"{resources_path}/renewable/profiles/wind_offshore_{{renewables_year}}.csv",
     renewables_year=renewables_year
 )
 renewable_targets += expand(
-    f"{resources_path}/renewable/profiles/wind_onshore_{{renewables_year}}.csv", 
+    f"{resources_path}/renewable/profiles/wind_onshore_{{renewables_year}}.csv",
     renewables_year=renewables_year
 )
 renewable_targets += expand(
-    f"{resources_path}/renewable/profiles/solar_pv_{{renewables_year}}.csv", 
+    f"{resources_path}/renewable/profiles/solar_pv_{{renewables_year}}.csv",
     renewables_year=renewables_year
 )
 
@@ -488,7 +505,12 @@ flexibility_targets += [
 
 # Per-scenario storage integration into networks
 flexibility_targets += expand(
-    f"{resources_path}/network/{{scenario}}_network_demand_renewables_thermal_generators_storage.pkl", 
+    f"{resources_path}/network/{{scenario}}_network_demand_renewables_thermal_generators_storage.pkl",
+    scenario=run_ids
+)
+
+flexibility_targets += expand(
+    f"{resources_path}/network/{{scenario}}_network_demand_renewables_thermal_generators_storage_nuclear.pkl",
     scenario=run_ids
 )
 
@@ -516,7 +538,7 @@ for rid in run_ids:
     network_model = scenarios[rid]["network_model"]
     interconnector_targets += [
         f"{resources_path}/interconnectors/interconnectors_mapped_{network_model}.csv",
-        f"{resources_path}/network/{rid}_network_demand_renewables_thermal_generators_storage_hydrogen_interconnectors.nc"
+        f"{resources_path}/network/{rid}_network_demand_renewables_thermal_generators_storage_nuclear_hydrogen_interconnectors.nc"
     ]
 
 
@@ -528,24 +550,24 @@ finalize_targets = []
 
 # Finalized networks with clean names (scenario.nc)
 finalize_targets += expand(
-    f"{resources_path}/network/{{scenario}}.nc", 
+    f"{resources_path}/network/{{scenario}}.nc",
     scenario=run_ids
 )
 
 # Network summaries
 finalize_targets += expand(
-    f"{resources_path}/network/{{scenario}}_network_summary.txt", 
+    f"{resources_path}/network/{{scenario}}_network_summary.txt",
     scenario=run_ids
 )
 
 # Optimization results (solving enabled)
 optimization_targets = []
 optimization_targets += expand(
-    f"{resources_path}/network/{{scenario}}_solved.nc", 
+    f"{resources_path}/network/{{scenario}}_solved.nc",
     scenario=run_ids
 )
 optimization_targets += expand(
-    f"{resources_path}/network/{{scenario}}_optimization_summary.txt", 
+    f"{resources_path}/network/{{scenario}}_optimization_summary.txt",
     scenario=run_ids
 )
 
@@ -556,17 +578,25 @@ optimization_targets += expand(
 
 analysis_targets = []
 
-# Spatial plots, dashboards, and notebooks for each solved scenario
+# Spatial plots, dashboards, notebooks, and summaries for each solved scenario
 analysis_targets += expand(
-    f"{resources_path}/analysis/{{scenario}}_spatial.html", 
+    f"{resources_path}/analysis/{{scenario}}_spatial.html",
     scenario=run_ids
 )
 analysis_targets += expand(
-    f"{resources_path}/analysis/{{scenario}}_dashboard.html", 
+    f"{resources_path}/analysis/{{scenario}}_dashboard.html",
     scenario=run_ids
 )
 analysis_targets += expand(
-    f"{resources_path}/analysis/{{scenario}}_notebook.ipynb", 
+    f"{resources_path}/analysis/{{scenario}}_summary.json",
+    scenario=run_ids
+)
+analysis_targets += expand(
+    f"{resources_path}/analysis/{{scenario}}_location_constraint_report.csv",
+    scenario=run_ids
+)
+analysis_targets += expand(
+    f"{resources_path}/analysis/{{scenario}}_notebook.ipynb",
     scenario=run_ids
 )
 
@@ -586,7 +616,7 @@ rule all:
         flexibility_targets,      # Storage integration
         interconnector_targets,   # Cross-border connections
         finalize_targets,         # Clean {scenario}.nc files
-        
+
         # Optimization and analysis (solving enabled)
         optimization_targets,     # Solved networks and results
         analysis_targets,         # Spatial plots, dashboards, notebooks

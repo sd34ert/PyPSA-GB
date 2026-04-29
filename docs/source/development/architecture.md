@@ -1,301 +1,188 @@
 # Architecture
 
-Overview of PyPSA-GB's software architecture and design decisions.
+Overview of the current PyPSA-GB branch architecture and the main design decisions that now shape future-scenario workflow behavior.
 
 ## High-Level Architecture
 
 ```{mermaid}
 flowchart TB
     subgraph Config["Configuration Layer"]
-        YAML["YAML Config Files"]
-        SCENARIOS["Scenario Definitions"]
+        DEFAULTS["defaults.yaml"]
+        MAIN["config.yaml"]
+        SCENARIOS["scenarios.yaml"]
     end
-    
+
     subgraph Workflow["Workflow Layer"]
-        SNAKE["Snakemake"]
-        RULES["Rule Definitions"]
+        SNAKE["Snakefile / rules/*.smk"]
+        POLICY["Post-assembly policy stage"]
     end
-    
-    subgraph Core["Core Layer"]
-        SCRIPTS["Python Scripts"]
-        PYPSA["PyPSA"]
+
+    subgraph Core["Execution Layer"]
+        SCRIPTS["scripts/<domain>/..."]
+        PYPSA["PyPSA networks"]
+        SOLVE["solve hooks"]
     end
-    
+
     subgraph Data["Data Layer"]
-        RAW["Raw Data"]
-        RESOURCES["Generated Resources"]
+        INPUTS["data/ + resources/land/"]
+        OUTPUTS["resources/"]
     end
-    
-    YAML --> SNAKE
+
+    DEFAULTS --> SNAKE
+    MAIN --> SNAKE
     SCENARIOS --> SNAKE
-    SNAKE --> RULES
-    RULES --> SCRIPTS
+    INPUTS --> SCRIPTS
+    SNAKE --> SCRIPTS
     SCRIPTS --> PYPSA
-    RAW --> SCRIPTS
-    SCRIPTS --> RESOURCES
+    PYPSA --> POLICY
+    POLICY --> SOLVE
+    SCRIPTS --> OUTPUTS
 ```
 
-## Design Principles
+## Current Design Principles
 
-### 1. Declarative Configuration
+### 1. Workflow-first assembly
 
-Users declare *what* they want, not *how* to build it:
+PyPSA-GB is not a library-first architecture. The main contract is the Snakemake DAG and the network artifacts it produces.
 
-```yaml
-# User specifies desired outcome
-HT35:
-  modelled_year: 2035
-  network_model: "ETYS"
-  FES_scenario: "Holistic Transition"
-```
+### 2. Whole-system layering
 
-Snakemake determines the execution path automatically.
+This branch now assumes a whole-system view:
 
-### 2. Reproducibility
+- network topology
+- demand
+- renewables
+- thermal generation
+- marginal costs
+- storage
+- nuclear metadata
+- hydrogen subsystem
+- interconnectors
+- policy-stage mutations
+- finalization, solve, and analysis
 
-- All inputs are versioned or documented
-- Configuration is explicit
-- Random seeds are fixed where needed
-- Logs capture execution details
+### 3. Future capacity as candidate envelopes
 
-### 3. Modularity
+Future FES capacity is no longer always injected as fixed installed build. For active candidate carriers, FES is treated as an upper-bound envelope that can be tightened later by land and siting policy.
 
-Each script does one thing well:
+### 4. Post-assembly policy mutation
 
-| Script | Single Responsibility |
-|--------|----------------------|
-| `network_build/ETYS_network.py` | Assemble ETYS network from preprocessed data |
-| `network_build/process_ETYS_data.py` | Parse raw ETYS Excel to CSVs |
-| `network_build/ETYS_upgrades.py` | Apply planned network reinforcements |
-| `network_build/etys_file_registry.py` | Map ETYS publication years to files |
-| `network_build/build_network.py` | Create Reduced/Zonal networks |
-| `integrate_thermal_generators.py` | Add thermal capacity |
-| `solve_network.py` | Run optimization |
+Technical-potential constraints are applied after the full network is assembled. This avoids losing subsystem context and makes constrained runs preserve storage, hydrogen, interconnectors, and marginal-cost work already added upstream.
 
-### 4. Data Source Abstraction
+## Configuration Architecture
 
-The same workflow handles historical and future scenarios:
+Relevant files:
 
-```{mermaid}
-flowchart LR
-    SCENARIO["Scenario Config"] --> DETECT["Scenario Detection"]
-    DETECT -->|"≤2024"| HIST["Historical Sources"]
-    DETECT -->|">2024"| FUTURE["FES Sources"]
-    HIST --> INTEGRATE["Integration"]
-    FUTURE --> INTEGRATE
-```
-
-## Component Architecture
-
-### Configuration System
-
-```
+```text
 config/
-├── config.yaml       # What to run
-├── scenarios.yaml    # Scenario definitions
-├── defaults.yaml     # Default values
-└── config_loader.py  # Python interface
+├── defaults.yaml
+├── config.yaml
+├── scenarios.yaml
+└── config_loader.py
 ```
 
-**Loading flow**:
-1. Load `defaults.yaml`
-2. Override with `scenarios.yaml` values
-3. Override with `config.yaml` values
-4. Override with command-line arguments
+Merged scenario configuration is built as:
 
-### Workflow System
+1. defaults
+2. global overrides
+3. scenario-specific overrides
 
-```
-Snakefile              # Main entry point
-├── rules/
-│   ├── network_build.smk
-│   ├── generators.smk
-│   ├── renewables.smk
-│   ├── storage.smk
-│   ├── solve.smk
-│   └── analysis.smk
-```
+This matters because candidate generation, hydrogen mode, and policy activation are all driven from the merged scenario object, not from raw YAML fragments.
 
-Rules define:
-- Input/output file relationships
-- Script to execute
-- Parameters from config
-- Log file locations
+## Workflow Architecture
 
-### Script Organization
-
-```
-scripts/
-├── Network Build Package
-│   ├── network_build/
-│   │   ├── ETYS_network.py          # ETYS network assembly (stage 2)
-│   │   ├── process_ETYS_data.py     # Raw Excel → CSV preprocessing (stage 1)
-│   │   ├── ETYS_upgrades.py         # Network upgrade application
-│   │   ├── etys_file_registry.py    # File/sheet name registry and constants
-│   │   └── build_network.py         # Reduced/Zonal network builders
-├── Core Modules
-│   ├── solve_network.py
-│   └── scenario_detection.py
-├── Integration Modules
-│   ├── integrate_thermal_generators.py
-│   ├── integrate_renewable_generators.py
-│   └── add_storage.py
-├── Utility Modules
-│   ├── spatial_utils.py
-│   ├── logging_config.py
-│   └── carrier_definitions.py
-└── Analysis Modules
-    ├── analyze_results.py
-    └── plotting.py
-```
-
-## Data Flow
-
-### Network Building Pipeline
+The current baseline chain is:
 
 ```{mermaid}
 flowchart LR
-    subgraph Build
-        BASE["Base Network\n(buses, lines)"]
-        DEMAND["+ Demand\n(loads)"]
-        RENEW["+ Renewables\n(generators)"]
-        THERMAL["+ Thermal\n(generators)"]
-        STORAGE["+ Storage\n(storage_units)"]
-        HYDRO["+ Hydrogen\n(electrolysis, H2)"]
-        INTER["+ Interconnectors\n(links)"]
-    end
-    
-    BASE --> DEMAND --> RENEW --> THERMAL --> STORAGE --> HYDRO --> INTER
+    BUILD["network_build"] --> DEMAND["demand"]
+    DEMAND --> RENEW["renewables"]
+    RENEW --> THERMAL["generators"]
+    THERMAL --> MCOST["marginal costs"]
+    MCOST --> STORAGE["storage"]
+    STORAGE --> NUCLEAR["nuclear"]
+    NUCLEAR --> H2["hydrogen"]
+    H2 --> INTER["interconnectors"]
+    INTER --> POLICY["policy"]
+    POLICY --> FINALIZE["finalize"]
+    FINALIZE --> SOLVE["solve"]
+    SOLVE --> ANALYSIS["analysis"]
 ```
 
-Each step:
-1. Loads the previous network state
-2. Adds new components
-3. Saves updated network
+Supporting pipelines:
 
-### File Naming Convention
+- `Snakefile_cutouts` for weather data
+- `land_constraints.smk` for siting and technical-potential preprocessing
+- optional clustering outputs for scenarios that enable clustering
 
-```
-{scenario}_network.nc                           # Base
-{scenario}_network_demand.pkl                   # + demand
-{scenario}_network_demand_renewables.pkl        # + renewables
-{scenario}_..._thermal_generators.pkl           # + thermal
-{scenario}_..._storage.pkl                      # + storage
-{scenario}_..._hydrogen.pkl                     # + hydrogen
-{scenario}_..._interconnectors.nc               # + interconnectors
-{scenario}_solved.nc                            # Optimized
-```
+## Key Architectural Shifts in the Current Branch
 
-## PyPSA Integration
+### Future candidates
 
-### Network Structure
+- renewables build future candidate rows in the renewable integration stage
+- large nuclear and SMR build future candidate rows in the thermal integration stage
+- candidate rows are extendable and intentionally start with `p_nom = 0`
 
-PyPSA-GB uses standard PyPSA components:
+### Nuclear-to-x scaffolding
 
-| Component | Usage |
-|-----------|-------|
-| `Bus` | Substations/nodes |
-| `Line` | Transmission circuits |
-| `Transformer` | Voltage transformation |
-| `Generator` | Power plants |
-| `StorageUnit` | Batteries, pumped hydro |
-| `Load` | Demand |
-| `Link` | HVDC, interconnectors |
+- nuclear metadata is added before hydrogen
+- hydrogen coupling can recognize future SMR candidates
+- heat extraction remains scaffolded rather than fully implemented
 
-### Component Naming
+### Full hydrogen-network support
 
-```python
-# Generators: {carrier}_{bus}_{index}
-"wind_offshore_BEAU41_0"
-"CCGT_PADI41_1"
+- hydrogen can run in full spatial-network mode using repo-local topology CSVs
+- legacy copper-plate behavior still exists for fallback compatibility
 
-# Storage: {carrier}_{bus}_{index}
-"battery_LOND41_0"
+### Post-policy reporting
 
-# Lines: {bus0}_{bus1}_{circuit}
-"BEAU41_DOUN41_1"
-```
+- pre-policy candidate-envelope reporting and post-policy solved-aware reporting are intentionally separate
+- this is now part of the architecture, not just an analysis convenience
 
-## Error Handling Strategy
+## Location-Constraint Data Flow
 
-### Levels of Handling
-
-1. **Validation**: Catch errors before processing
-   ```python
-   validate_scenario_complete(scenario)
-   ```
-
-2. **Graceful Degradation**: Handle missing optional data
-   ```python
-   try:
-       extra_data = load_optional_data()
-   except FileNotFoundError:
-       logger.warning("Optional data not found, using defaults")
-       extra_data = defaults
-   ```
-
-3. **Fail Fast**: Stop on critical errors
-   ```python
-   if not network.buses.any():
-       raise ValueError("Network has no buses!")
-   ```
-
-### Logging Strategy
-
-```python
-# DEBUG: Detailed diagnostic info
-logger.debug(f"Processing bus {bus_name} with {n_gens} generators")
-
-# INFO: Progress milestones
-logger.info(f"Added {n_generators} generators to network")
-
-# WARNING: Recoverable issues
-logger.warning(f"Missing coordinates for {n_missing} sites, skipping")
-
-# ERROR: Problems requiring attention
-logger.error(f"Solver returned infeasible status")
+```{mermaid}
+flowchart LR
+    FES["FES spatial capacity"] --> CAND["Candidate-envelope build"]
+    LAND["technical_potential_Zonal.csv"] --> CAND
+    EXIST["Live existing capacity"] --> CAND
+    CAND --> PRE["future_capacity_oversubscription.csv"]
+    CAND --> NET["assembled network"]
+    NET --> POL["apply_technical_potential_constraints.py"]
+    POL --> POST["{scenario}_network_constrained.nc"]
+    POST --> SOLVED["{scenario}_solved.nc"]
+    PRE --> REPORT["location_constraint_report.csv"]
+    POST --> REPORT
+    SOLVED --> REPORT
 ```
 
-## Extension Points
+The detailed developer semantics for this flow live on {doc}`location_constraints`.
 
-### Adding New Technologies
+## Carrier Semantics
 
-1. Define carrier in `carrier_definitions.py`
-2. Add data processing in integration module
-3. Update profile generation if needed
-4. Add configuration options
+### Renewables
 
-### Adding New Data Sources
+- zonal FES envelope
+- zonal land caps
+- no row-level land split
 
-1. Place raw data in `data/`
-2. Create processing script
-3. Add Snakemake rule
-4. Update scenario detection if needed
+### Large nuclear
 
-### Adding New Analysis
+- workbook-derived national FES totals
+- EN-6 site screening
+- configured per-site cap used as `land_cap_mw`
+- current `3400 MW` default is a repo assumption
 
-1. Create analysis script
-2. Add rule in `analysis.smk`
-3. Define output format (HTML, CSV, etc.)
+### SMR
 
-## Performance Considerations
+- workbook-derived national FES totals
+- zonal SMR land caps
+- repo-local demand anchors
+- row-level land cap split across anchors
 
-### Memory Management
+## Important Architectural Constraints
 
-- Large networks use ~8GB RAM
-- Time series stored efficiently (NetCDF)
-- Profile caching to avoid recomputation
-
-### Computation Scaling
-
-| Factor | Impact |
-|--------|--------|
-| More buses | O(n²) for LOPF |
-| More timesteps | Linear |
-| More generators | Sublinear (grouped) |
-
-### Optimization
-
-- Network clustering for faster solving
-- Parallel rule execution
-- Profile pre-generation
+- `resources/network/{scenario}_network_constrained.nc` is the authoritative post-policy network artifact.
+- `resources/generators/{scenario}_future_capacity_oversubscription.csv` is a pre-policy report and can match between constrained and unconstrained runs.
+- `resources/analysis/{scenario}_location_constraint_report.csv` is the authoritative post-policy, solved-aware row-level explanation.
+- Shared national FES caps for large nuclear and SMR are enforced at solve time, so local candidate caps alone do not determine total nuclear build.

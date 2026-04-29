@@ -7,6 +7,7 @@ Resources for contributing to and understanding the PyPSA-GB codebase.
 
 contributing
 architecture
+location_constraints
 release_notes
 troubleshooting
 ```

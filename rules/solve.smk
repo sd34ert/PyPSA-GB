@@ -2,11 +2,12 @@
 Network Finalization and Optimization Rules for PyPSA-GB
 
 Pipeline Stages:
-  1. finalize_network - Create clean {scenario}.nc from complete network
-  2. solve_network - Run PyPSA optimization
+  1. finalize_network - Create clean {scenario}.nc from the full assembled network
+  2. solve_network - Run PyPSA optimization and any active solve-time hooks
 
 Inputs:
-  - Complete network with all components (.nc)
+  - Full pre-solve network with storage, nuclear metadata, hydrogen,
+    interconnectors, and optional post-assembly policy mutations (.nc)
 
 Outputs:
   - Finalized network (.nc)
@@ -15,6 +16,7 @@ Outputs:
 
 See Also:
   - interconnectors.smk - Produces complete networks
+  - policy.smk - Applies post-assembly policy mutations such as technical-potential caps
   - analysis.smk - Post-solve analysis (spatial plots, dashboards, notebooks)
 """
 
@@ -28,11 +30,11 @@ _cfg = config
 def _get_solver_config(scenario_id=None):
     """
     Get solver configuration from merged scenario config (includes defaults.yaml).
-    
+
     Args:
         scenario_id: Optional scenario ID to get scenario-specific solver config.
                      If None, returns defaults from first scenario or config.yaml.
-    
+
     Returns:
         Tuple of (solver_name, solver_options)
     """
@@ -46,10 +48,10 @@ def _get_solver_config(scenario_id=None):
     else:
         # Last resort: main config
         solver_config = _cfg.get("solver", {})
-    
+
     # Get solver name (default to gurobi per defaults.yaml)
     solver_name = solver_config.get("name", "gurobi")
-    
+
     # Build solver options based on solver type
     if solver_name == "gurobi":
         solver_options = {
@@ -73,8 +75,23 @@ def _get_solver_config(scenario_id=None):
     else:
         # Generic options for other solvers
         solver_options = {"threads": solver_config.get("threads", 4)}
-    
+
     return solver_name, solver_options
+
+
+def _get_solver_threads(scenario_id=None):
+    """
+    Return the thread count Snakemake should reserve for a scenario.
+
+    A configured value <= 0 means "use all available rule threads" for the
+    solver at runtime. Snakemake still requires a positive integer here, so we
+    request a large sentinel value and let Snakemake scale it down to the
+    workflow's available cores.
+    """
+    configured_threads = int(_get_solver_config(scenario_id)[1].get("threads", 4))
+    if configured_threads <= 0:
+        return 9999
+    return configured_threads
 
 def _regex_from_list(items):
     """Generate regex pattern that matches exactly the items in the list."""
@@ -87,13 +104,13 @@ SCENARIO_REGEX = _regex_from_list(_run_ids)
 def _is_clustering_enabled(scenario_id):
     """
     Determine if clustering is enabled for a scenario.
-    
+
     Logic:
     - String preset name (e.g., "gsp_spatial") means enabled
     - Dict with 'method' key means enabled (unless explicitly disabled)
     - Dict with 'enabled: false' means disabled
     - None or False means disabled
-    
+
     This logic is consistent with config_loader.py's resolve_clustering().
     """
     clustering_config = _scenarios.get(scenario_id, {}).get('clustering', None)
@@ -107,9 +124,35 @@ def _is_clustering_enabled(scenario_id):
     return False
 
 
+def _should_apply_technical_potential_constraints(scenario_id_or_config):
+    """Check if technical potential constraints should be applied for this scenario."""
+    if isinstance(scenario_id_or_config, str):
+        scenario_config = _scenarios.get(scenario_id_or_config, {})
+    else:
+        scenario_config = scenario_id_or_config or {}
+
+    constraints_config = scenario_config.get('technical_potential_constraints', {})
+
+    # Check master enable flag
+    if not constraints_config.get('enabled', False):
+        return False
+
+    # Check modelled_year guard
+    min_year = constraints_config.get('min_modelled_year', 2025)
+    if scenario_config.get('modelled_year', 2020) < min_year:
+        return False
+
+    # Check supported network models
+    supported = constraints_config.get('supported_network_models', ['zonal'])
+    network_model = scenario_config.get('network_model', 'Zonal').lower()
+    if network_model not in [m.lower() for m in supported]:
+        return False
+
+    return True
+
 def _clustered_network_output(scenario_id):
     """Return path to clustered network (aggregation is now inline in clustering)."""
-    return f"{resources_path}/network/{scenario_id}_network_clustered_demand_renewables_thermal_generators_storage_hydrogen_interconnectors.nc"
+    return f"{resources_path}/network/{scenario_id}_network_clustered_demand_renewables_thermal_generators_storage_nuclear_hydrogen_interconnectors.nc"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # RULES
@@ -118,11 +161,11 @@ def _clustered_network_output(scenario_id):
 rule finalize_network:
     """
     Finalize complete network to clean scenario name.
-    
+
     This rule creates a clean {scenario}.nc file from the complete network
     (either clustered or unclustered depending on scenario configuration).
     This provides a simple, clean interface for users and downstream analysis.
-    
+
     The complete network contains:
     - Network topology (buses, lines, transformers)
     - Demand loads
@@ -131,23 +174,26 @@ rule finalize_network:
     - Load shedding backup (VoLL)
     - Storage units (batteries, pumped hydro, etc.)
     - Interconnectors (cross-border links)
-    
+    - Technical potential constraints (if enabled)
+
     Input:
-      - Complete network with all components (clustered if enabled)
-    
+      - Complete network with all components (clustered if enabled, constrained if enabled)
+
     Output:
       - Network file {scenario}.nc
       - Network summary: {scenario}_network_summary.txt
-    
+
     Usage:
       snakemake resources/network/Historical_2020_clustered.nc --cores 1
     """
     input:
-        network=lambda wildcards: (
-            _clustered_network_output(wildcards.scenario)
-            if _is_clustering_enabled(wildcards.scenario)
-            else f"{resources_path}/network/{wildcards.scenario}_network_demand_renewables_thermal_generators_storage_hydrogen_interconnectors.nc"
-        )
+        network=lambda wildcards: f"{resources_path}/network/{wildcards.scenario}_network_constrained.nc"
+            if _should_apply_technical_potential_constraints(wildcards.scenario)
+            else (
+                _clustered_network_output(wildcards.scenario)
+                if _is_clustering_enabled(wildcards.scenario)
+                else f"{resources_path}/network/{wildcards.scenario}_network_demand_renewables_thermal_generators_storage_nuclear_hydrogen_interconnectors.nc"
+            )
     output:
         network=f"{resources_path}/network/{{scenario}}.nc",
         summary=f"{resources_path}/network/{{scenario}}_network_summary.txt"
@@ -161,7 +207,11 @@ rule finalize_network:
         scenario=SCENARIO_REGEX
     params:
         # Merge global config (config.yaml) with scenario-specific config
-        scenario_config=lambda wildcards: {**_cfg, **_scenarios.get(wildcards.scenario, {})}
+        scenario_config=lambda wildcards: {
+            **_cfg,
+            **_scenarios.get(wildcards.scenario, {}),
+            "scenario_id": wildcards.scenario,
+        }
     script:
         "../scripts/solve/finalize_network.py"
 
@@ -173,7 +223,7 @@ rule finalize_network:
 rule solve_network:
     """
     Solve network using PyPSA optimization.
-    
+
     This rule performs optimal power flow optimization to determine:
     - Generator dispatch schedules (which generators run when)
     - Storage charging/discharging patterns
@@ -181,7 +231,7 @@ rule solve_network:
     - Line loading and potential congestion
     - System costs (generation, storage, load shedding)
     - Carbon emissions
-    
+
     Optimization Formulation:
       - Objective: Minimize total system cost
       - Constraints:
@@ -191,7 +241,7 @@ rule solve_network:
         * Storage energy/power limits
         * Ramp rate constraints
         * Minimum up/down times (optional)
-    
+
     Solve Period (Optional):
       - Networks are built with full year data for consistency
       - Can optimize subset of year via 'solve_period' in scenario config
@@ -200,28 +250,28 @@ rule solve_network:
         * Auto-select: peak_demand_week, peak_wind_week, low_wind_week
       - Example: Solve one week in December for peak demand analysis
       - Reduces solve time while maintaining data consistency
-    
+
     Solver Configuration:
       - Default: Gurobi (if available) or HiGHS (open source)
       - Configurable via scenario config or config.yaml
       - Solver options: threads, method, tolerances, time limits
-    
+
     Input:
       - Finalized network: {scenario}.nc (full year data)
       - Solver configuration (from config.yaml)
-    
+
     Output:
       - Solved network: {scenario}_solved.nc (includes optimization results)
       - Optimization summary: {scenario}_optimization_summary.txt
       - Results CSV exports: generation, storage, flows, costs
-    
+
     Performance:
       - Runtime varies greatly with network size, solver, and period
       - Full year ETYS network: 30 min - 2 hours
       - Full year clustered: 5-30 minutes
       - One week clustered: 1-5 minutes (much faster!)
       - Zonal networks: 1-10 minutes
-    
+
     Usage:
       snakemake resources/network/Historical_2020_clustered_solved.nc --cores 1
     """
@@ -241,13 +291,17 @@ rule solve_network:
         "benchmarks/solve/solve_{scenario}.txt"
     conda:
         "../envs/pypsa-gb.yaml"
-    threads: 4
+    threads: lambda wildcards: _get_solver_threads(wildcards.scenario)
     wildcard_constraints:
         scenario=SCENARIO_REGEX
     params:
         # Merge global config (config.yaml) with scenario-specific config
         # Scenario config takes precedence
-        scenario_config=lambda wildcards: {**_cfg, **_scenarios.get(wildcards.scenario, {})},
+        scenario_config=lambda wildcards: {
+            **_cfg,
+            **_scenarios.get(wildcards.scenario, {}),
+            "scenario_id": wildcards.scenario,
+        },
         solver=lambda wildcards: _get_solver_config(wildcards.scenario)[0],
         solver_options=lambda wildcards: _get_solver_config(wildcards.scenario)[1]
     script:

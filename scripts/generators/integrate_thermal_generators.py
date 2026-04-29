@@ -42,12 +42,14 @@ import os
 from pathlib import Path
 import time
 import yaml
+from typing import Optional
 
 # Fast I/O for network loading/saving
 from scripts.utilities.network_io import load_network, save_network
 
 from scripts.utilities.logging_config import setup_logging, log_dataframe_info, log_network_info, log_execution_summary, log_stage_timing, log_stage_summary
 from scripts.utilities.carrier_definitions import get_carrier_definitions, add_carriers_to_network
+from scripts.utilities.path_resolution import get_fes_data_path
 import difflib
 
 # Import shared spatial utilities and renewable generator functions
@@ -62,9 +64,736 @@ from scripts.utilities.spatial_utils import (
 )
 from integrate_renewable_generators import load_generator_characteristics
 import numpy as np
+from scripts.generators.future_capacity_candidates import (
+    build_land_cap_table,
+    load_fes_nuclear_capacity_split,
+    normalize_future_capacity_candidates_config,
+    resolve_nuclear_workbook_path,
+)
+from scripts.generators.future_nuclear_candidates import (
+    build_large_nuclear_candidate_rows,
+    build_large_nuclear_headroom_table,
+    build_smr_candidate_headroom_table,
+    build_smr_candidate_rows,
+    load_en6_sites,
+    load_smr_anchors,
+)
 
 # Initialize logging
 logger = setup_logging("integrate_thermal_generators")
+
+
+FUTURE_CAPACITY_REPORT_COLUMNS = [
+    "carrier",
+    "candidate_group",
+    "zone_name",
+    "bus",
+    "site_or_anchor_id",
+    "site_or_anchor_name",
+    "anchor_type",
+    "fes_group_total_mw",
+    "fes_spatial_cap_mw",
+    "land_cap_mw",
+    "row_level_land_cap_mw",
+    "effective_total_cap_mw",
+    "live_existing_capacity_mw",
+    "local_headroom_mw",
+    "extendable_headroom_pre_land_mw",
+    "extendable_headroom_mw",
+    "land_binding",
+    "existing_oversubscribed",
+    "possible_preallocation_artifact",
+    "oversubscribed",
+    "oversubscription_amount_mw",
+    "unallocated_zone",
+]
+
+
+def empty_future_capacity_report() -> pd.DataFrame:
+    """Return an empty future-capacity report with the standard schema."""
+    return pd.DataFrame(columns=FUTURE_CAPACITY_REPORT_COLUMNS)
+
+
+def write_future_capacity_report(report_df: pd.DataFrame, report_path: str | Path) -> None:
+    """Write a standardized future-capacity report for thermal-stage outputs."""
+    output_df = report_df.copy() if report_df is not None else empty_future_capacity_report()
+    if output_df.empty:
+        output_df = empty_future_capacity_report()
+    else:
+        for column in FUTURE_CAPACITY_REPORT_COLUMNS:
+            if column not in output_df.columns:
+                output_df[column] = np.nan
+        output_df = output_df[FUTURE_CAPACITY_REPORT_COLUMNS]
+
+    path = Path(report_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    output_df.to_csv(path, index=False)
+    logger.info("Saved future-capacity report to %s", path)
+
+
+def load_existing_future_capacity_report(report_path: str | Path) -> pd.DataFrame:
+    """Load the existing renewable-stage future-capacity report if present."""
+    path = Path(report_path)
+    if not path.exists():
+        return pd.DataFrame()
+    try:
+        return pd.read_csv(path)
+    except Exception:
+        logger.warning("Failed to load existing future-capacity report: %s", path)
+        return pd.DataFrame()
+
+
+def _assert_unique_report_columns(frame: pd.DataFrame, label: str) -> pd.DataFrame:
+    """Fail early if report-standardization creates duplicate column names."""
+    duplicate_columns = frame.columns[frame.columns.duplicated()].tolist()
+    if duplicate_columns:
+        duplicates = ", ".join(sorted(set(duplicate_columns)))
+        raise ValueError(f"{label} has duplicate columns after report standardization: {duplicates}")
+    return frame
+
+
+def build_future_nuclear_report_table(
+    large_headroom: pd.DataFrame,
+    smr_headroom: pd.DataFrame,
+    smr_unallocated: pd.DataFrame,
+    smr_group_total_mw: float,
+) -> pd.DataFrame:
+    """Standardize future nuclear reporting rows for downstream concatenation."""
+    report_rows = []
+
+    if not large_headroom.empty:
+        large_report = large_headroom.rename(
+            columns={
+                "site_id": "site_or_anchor_id",
+                "site_name": "site_or_anchor_name",
+                "local_siting_cap_mw": "land_cap_mw",
+            }
+        ).copy()
+        large_report["carrier"] = "nuclear"
+        large_report["anchor_type"] = np.nan
+        large_report["zone_name"] = large_report["bus"].astype(str)
+        large_report["fes_spatial_cap_mw"] = np.nan
+        large_report["row_level_land_cap_mw"] = np.nan
+        large_report["unallocated_zone"] = False
+        report_rows.append(_assert_unique_report_columns(large_report, "large nuclear report"))
+
+    if not smr_headroom.empty:
+        smr_report = smr_headroom.rename(
+            columns={
+                "anchor_id": "site_or_anchor_id",
+                "anchor_name": "site_or_anchor_name",
+                "zone_land_cap_mw": "land_cap_mw",
+                "anchor_fes_share_mw": "fes_spatial_cap_mw",
+                "anchor_land_cap_mw": "row_level_land_cap_mw",
+            }
+        ).copy()
+        smr_report["carrier"] = "smr"
+        smr_report["unallocated_zone"] = False
+        report_rows.append(_assert_unique_report_columns(smr_report, "SMR report"))
+
+    if not smr_unallocated.empty:
+        unallocated_report = smr_unallocated.copy()
+        unallocated_report["carrier"] = "smr"
+        unallocated_report["candidate_group"] = "smr"
+        unallocated_report["site_or_anchor_id"] = np.nan
+        unallocated_report["site_or_anchor_name"] = np.nan
+        unallocated_report["anchor_type"] = np.nan
+        unallocated_report["bus"] = np.nan
+        unallocated_report["lat"] = np.nan
+        unallocated_report["lon"] = np.nan
+        unallocated_report["fes_group_total_mw"] = float(smr_group_total_mw)
+        unallocated_report["fes_spatial_cap_mw"] = np.nan
+        unallocated_report["land_cap_mw"] = np.nan
+        unallocated_report["row_level_land_cap_mw"] = np.nan
+        unallocated_report["effective_total_cap_mw"] = np.nan
+        unallocated_report["live_existing_capacity_mw"] = 0.0
+        unallocated_report["local_headroom_mw"] = 0.0
+        unallocated_report["extendable_headroom_pre_land_mw"] = 0.0
+        unallocated_report["extendable_headroom_mw"] = 0.0
+        unallocated_report["land_binding"] = False
+        unallocated_report["existing_oversubscribed"] = False
+        unallocated_report["possible_preallocation_artifact"] = False
+        unallocated_report["oversubscribed"] = False
+        unallocated_report["oversubscription_amount_mw"] = 0.0
+        report_rows.append(_assert_unique_report_columns(unallocated_report, "SMR unallocated report"))
+
+    if not report_rows:
+        return pd.DataFrame()
+
+    nuclear_report = pd.concat(report_rows, ignore_index=True, sort=False)
+    return _assert_unique_report_columns(nuclear_report, "future nuclear report")
+
+
+def ensure_wgs84_coordinates(df: pd.DataFrame) -> pd.DataFrame:
+    """Ensure a dataframe has lat/lon in WGS84 for spatial mapping."""
+    result = df.copy()
+    if "lat" in result.columns and "lon" in result.columns:
+        valid = pd.to_numeric(result["lat"], errors="coerce").notna() & pd.to_numeric(
+            result["lon"], errors="coerce"
+        ).notna()
+        if valid.any():
+            result["lat"] = pd.to_numeric(result["lat"], errors="coerce")
+            result["lon"] = pd.to_numeric(result["lon"], errors="coerce")
+            return result
+
+    if "x_coord" in result.columns and "y_coord" in result.columns:
+        try:
+            from pyproj import Transformer
+
+            transformer = Transformer.from_crs("EPSG:27700", "EPSG:4326", always_xy=True)
+            x_coords = pd.to_numeric(result["x_coord"], errors="coerce")
+            y_coords = pd.to_numeric(result["y_coord"], errors="coerce")
+            valid_coords = x_coords.notna() & y_coords.notna()
+            result["lon"] = np.nan
+            result["lat"] = np.nan
+            if valid_coords.any():
+                lon_wgs84, lat_wgs84 = transformer.transform(
+                    x_coords[valid_coords].values,
+                    y_coords[valid_coords].values,
+                )
+                result.loc[valid_coords, "lon"] = lon_wgs84
+                result.loc[valid_coords, "lat"] = lat_wgs84
+        except ImportError:
+            logger.warning("pyproj unavailable - cannot convert OSGB36 coordinates to WGS84")
+
+    return result
+
+
+def map_site_rows_to_buses(
+    network: pypsa.Network,
+    rows_df: pd.DataFrame,
+    logger,
+    max_distance_km: Optional[float] = None,
+) -> pd.DataFrame:
+    """Map candidate/baseline site rows to the nearest network bus."""
+    if rows_df is None or len(rows_df) == 0:
+        return pd.DataFrame(columns=list(rows_df.columns) if rows_df is not None else [])
+
+    mapped = ensure_wgs84_coordinates(rows_df)
+    valid = pd.to_numeric(mapped.get("lat"), errors="coerce").notna() & pd.to_numeric(
+        mapped.get("lon"), errors="coerce"
+    ).notna()
+    if not valid.any():
+        logger.warning("No valid lat/lon coordinates found for site rows; skipping bus mapping")
+        return mapped
+
+    if max_distance_km is None:
+        max_distance_km = 1000.0 if len(network.buses) < 50 else 200.0
+
+    mapped_subset = map_sites_to_buses(
+        network,
+        mapped.loc[valid].copy(),
+        method="nearest",
+        lon_col="lon",
+        lat_col="lat",
+        max_distance_km=max_distance_km,
+    )
+    mapped.loc[valid, "bus"] = mapped_subset["bus"].values
+    return mapped
+
+
+def load_live_nuclear_baseline_sites(
+    nuclear_sites_path: str | Path,
+    modelled_year: int,
+    retain_sites: list[str] | None,
+    logger,
+) -> pd.DataFrame:
+    """Load live fixed nuclear sites that should occupy large-nuclear headroom."""
+    path = Path(nuclear_sites_path)
+    if not path.exists():
+        logger.warning("Nuclear site file not found for future nuclear baseline: %s", path)
+        return pd.DataFrame()
+
+    sites = pd.read_csv(path)
+    if sites.empty:
+        return pd.DataFrame()
+
+    sites = sites[sites["technology"].astype(str).str.casefold().eq("nuclear")].copy()
+    if sites.empty:
+        return pd.DataFrame()
+
+    phase_ready = sites.rename(columns={"site_name": "station_name"})
+    phase_ready = apply_plant_phase_out_filtering(
+        phase_ready,
+        modelled_year,
+        retain_sites=retain_sites,
+    )
+    sites = phase_ready.rename(columns={"station_name": "site_name"})
+    sites["capacity_mw"] = pd.to_numeric(sites["capacity_mw"], errors="coerce").fillna(0.0)
+    sites = sites[sites["capacity_mw"] > 0].copy()
+    return sites
+
+
+def _get_scotland_zones(scenario_config: dict) -> set[str]:
+    zones = scenario_config.get("scotland", {}).get("zones", [])
+    return {str(zone) for zone in zones}
+
+
+def _remap_site_rows_across_scotland_boundary(
+    network: pypsa.Network,
+    rows_df: pd.DataFrame,
+    scenario_config: dict,
+    logger,
+) -> pd.DataFrame:
+    """Remap site rows to buses on the correct side of the Scotland boundary."""
+    if rows_df.empty or "country" not in rows_df.columns or "bus" not in rows_df.columns:
+        return rows_df
+
+    scotland_zones = _get_scotland_zones(scenario_config)
+    if not scotland_zones:
+        return rows_df
+
+    scottish_buses = [bus for bus in network.buses.index if str(bus) in scotland_zones]
+    non_scottish_buses = [bus for bus in network.buses.index if str(bus) not in scotland_zones]
+    if not scottish_buses or not non_scottish_buses:
+        return rows_df
+
+    remapped = rows_df.copy()
+    country = remapped["country"].astype(str).str.casefold()
+    bus_series = remapped["bus"].astype(str)
+
+    scottish_rows = country.eq("scotland") & ~bus_series.isin(scotland_zones)
+    non_scottish_rows = ~country.eq("scotland") & bus_series.isin(scotland_zones)
+
+    def _remap_subset(mask: pd.Series, allowed_buses: list[str], boundary_name: str) -> None:
+        if not mask.any():
+            return
+        subset = remapped.loc[mask].copy()
+        subset["bus"] = None
+        bus_subset_network = pypsa.Network()
+        bus_subset_network.buses = network.buses.loc[allowed_buses].copy()
+        subset = map_site_rows_to_buses(
+            bus_subset_network,
+            subset,
+            logger,
+            max_distance_km=400.0,
+        )
+        remapped.loc[mask, "bus"] = subset["bus"].values
+        logger.info(
+            "Remapped %s site rows to buses on the %s side of the Scotland boundary",
+            int(mask.sum()),
+            boundary_name,
+        )
+
+    _remap_subset(scottish_rows, scottish_buses, "Scottish")
+    _remap_subset(non_scottish_rows, non_scottish_buses, "non-Scottish")
+    return remapped
+
+
+def _resolve_scotland_ban(scenario_config: dict, carrier_key: str) -> bool:
+    siting = scenario_config.get("nuclear", {}).get("siting_constraints", {})
+    carrier_cfg = siting.get(carrier_key, {})
+    if isinstance(carrier_cfg, dict) and "scotland_ban" in carrier_cfg:
+        return bool(carrier_cfg["scotland_ban"])
+    return bool(siting.get("scotland_ban", True))
+
+
+def _filter_smr_anchors_for_scenario(anchors_df: pd.DataFrame, scenario_config: dict, logger) -> pd.DataFrame:
+    if anchors_df.empty:
+        return anchors_df
+
+    filtered = anchors_df.copy()
+    scotland_zones = _get_scotland_zones(scenario_config)
+    smr_cfg = (
+        scenario_config.get("nuclear", {})
+        .get("siting_constraints", {})
+        .get("smr", {})
+    )
+    allowed_anchor_ids = {
+        str(anchor_id)
+        for anchor_id in smr_cfg.get("allowed_anchor_ids", []) or []
+        if str(anchor_id).strip()
+    }
+    scotland_ban = _resolve_scotland_ban(scenario_config, "smr")
+
+    if scotland_ban and scotland_zones:
+        scottish_anchor_mask = filtered["zone_name"].astype(str).isin(scotland_zones)
+        if "lat" in filtered.columns:
+            scottish_anchor_mask = scottish_anchor_mask | (
+                pd.to_numeric(filtered["lat"], errors="coerce").fillna(-999.0) >= 55.5
+            )
+        before = len(filtered)
+        filtered = filtered[~scottish_anchor_mask].copy()
+        logger.info(
+            "Filtered Scottish SMR anchors via scenario siting control: %s -> %s rows",
+            before,
+            len(filtered),
+        )
+
+    if allowed_anchor_ids:
+        scottish_anchor_mask = filtered["zone_name"].astype(str).isin(scotland_zones)
+        if "lat" in filtered.columns:
+            scottish_anchor_mask = scottish_anchor_mask | (
+                pd.to_numeric(filtered["lat"], errors="coerce").fillna(-999.0) >= 55.5
+            )
+        before = len(filtered)
+        filtered = filtered[
+            ~scottish_anchor_mask
+            | filtered["anchor_id"].astype(str).isin(allowed_anchor_ids)
+        ].copy()
+        logger.info(
+            "Applied Scottish SMR anchor allow-list (%s) while preserving non-Scottish anchors: %s -> %s rows",
+            ", ".join(sorted(allowed_anchor_ids)),
+            before,
+            len(filtered),
+        )
+
+    return filtered.reset_index(drop=True)
+
+
+def _apply_allowed_smr_anchor_land_floor(
+    anchors_df: pd.DataFrame,
+    zone_land_caps_df: pd.DataFrame,
+    scenario_config: dict,
+    logger,
+) -> pd.DataFrame:
+    """Apply a minimum zonal land-cap floor for explicitly allowed experimental SMR anchors."""
+    smr_cfg = (
+        scenario_config.get("nuclear", {})
+        .get("siting_constraints", {})
+        .get("smr", {})
+    )
+    allowed_anchor_ids = {
+        str(anchor_id)
+        for anchor_id in smr_cfg.get("allowed_anchor_ids", []) or []
+        if str(anchor_id).strip()
+    }
+    if not allowed_anchor_ids or anchors_df.empty:
+        return zone_land_caps_df
+
+    min_site_area = float(smr_cfg.get("min_site_area", 1.0) or 1.0)
+    capacity_density = float(smr_cfg.get("capacity_density", 1.0) or 1.0)
+    floor_mw = min_site_area * capacity_density
+    if floor_mw <= 0:
+        return zone_land_caps_df
+
+    zones_with_allowed_anchors = sorted(
+        set(
+            anchors_df[anchors_df["anchor_id"].astype(str).isin(allowed_anchor_ids)]["zone_name"]
+            .dropna()
+            .astype(str)
+        )
+    )
+    if not zones_with_allowed_anchors:
+        return zone_land_caps_df
+
+    land_caps = zone_land_caps_df.copy()
+    existing_zones = set(land_caps["zone_name"].astype(str))
+    for zone_name in zones_with_allowed_anchors:
+        if zone_name in existing_zones:
+            zone_mask = land_caps["zone_name"].astype(str).eq(zone_name)
+            current_cap = pd.to_numeric(land_caps.loc[zone_mask, "land_cap_mw"], errors="coerce").fillna(0.0)
+            land_caps.loc[zone_mask, "land_cap_mw"] = np.maximum(current_cap, floor_mw)
+        else:
+            land_caps = pd.concat(
+                [
+                    land_caps,
+                    pd.DataFrame([{"zone_name": zone_name, "carrier": "smr", "land_cap_mw": floor_mw}]),
+                ],
+                ignore_index=True,
+                sort=False,
+            )
+    logger.info(
+        "Applied experimental SMR land-cap floor of %.1f MW to allow-listed anchor zones: %s",
+        floor_mw,
+        ", ".join(zones_with_allowed_anchors),
+    )
+    return land_caps
+
+
+def _build_smr_headroom_with_scottish_overlay(
+    anchors_df: pd.DataFrame,
+    zone_land_caps_df: pd.DataFrame,
+    national_fes_total_mw: float,
+    demand_weights: dict,
+    scenario_config: dict,
+    logger,
+    zone_col: str = "zone_name",
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Optionally preserve the base non-Scottish SMR geography and overlay Scottish anchors."""
+    smr_cfg = (
+        scenario_config.get("nuclear", {})
+        .get("siting_constraints", {})
+        .get("smr", {})
+    )
+    preserve_non_scottish_baseline = bool(smr_cfg.get("preserve_non_scottish_baseline", False))
+    allowed_anchor_ids = {
+        str(anchor_id)
+        for anchor_id in smr_cfg.get("allowed_anchor_ids", []) or []
+        if str(anchor_id).strip()
+    }
+
+    if not preserve_non_scottish_baseline or not allowed_anchor_ids or anchors_df.empty:
+        return build_smr_candidate_headroom_table(
+            anchors_df=anchors_df,
+            zone_land_caps_df=zone_land_caps_df,
+            national_fes_total_mw=national_fes_total_mw,
+            demand_weights=demand_weights,
+            zone_col=zone_col,
+        )
+
+    allowed_mask = anchors_df["anchor_id"].astype(str).isin(allowed_anchor_ids)
+    non_scottish_or_baseline = anchors_df.loc[~allowed_mask].copy()
+
+    if non_scottish_or_baseline.empty:
+        logger.warning(
+            "SMR preserve_non_scottish_baseline is enabled but no baseline anchors remain after filtering; "
+            "falling back to all-anchor allocation."
+        )
+        return build_smr_candidate_headroom_table(
+            anchors_df=anchors_df,
+            zone_land_caps_df=zone_land_caps_df,
+            national_fes_total_mw=national_fes_total_mw,
+            demand_weights=demand_weights,
+            zone_col=zone_col,
+        )
+
+    baseline_headroom, _ = build_smr_candidate_headroom_table(
+        anchors_df=non_scottish_or_baseline,
+        zone_land_caps_df=zone_land_caps_df,
+        national_fes_total_mw=national_fes_total_mw,
+        demand_weights=demand_weights,
+        zone_col=zone_col,
+    )
+    overlay_headroom, overlay_unallocated = build_smr_candidate_headroom_table(
+        anchors_df=anchors_df,
+        zone_land_caps_df=zone_land_caps_df,
+        national_fes_total_mw=national_fes_total_mw,
+        demand_weights=demand_weights,
+        zone_col=zone_col,
+    )
+    scottish_overlay = overlay_headroom.loc[
+        overlay_headroom["anchor_id"].astype(str).isin(allowed_anchor_ids)
+    ].copy()
+
+    combined = pd.concat([baseline_headroom, scottish_overlay], ignore_index=True, sort=False)
+    logger.info(
+        "Preserved %s baseline non-Scottish SMR anchors and overlaid %s allowed Scottish anchors "
+        "without shrinking the baseline local geography.",
+        len(baseline_headroom),
+        len(scottish_overlay),
+    )
+    return combined, overlay_unallocated
+
+
+def apply_fixed_future_nuclear_scotland_override(
+    thermal_data: pd.DataFrame,
+    scenario_config: dict,
+    logger,
+) -> pd.DataFrame:
+    """Remove Scottish fixed future nuclear rows and renormalize the remaining GB envelope."""
+    future_fixed_cfg = scenario_config.get("nuclear", {}).get("future_fixed", {})
+    if not bool(future_fixed_cfg.get("exclude_scotland", False)):
+        return thermal_data
+    if thermal_data.empty or "bus" not in thermal_data.columns:
+        return thermal_data
+
+    scotland_zones = _get_scotland_zones(scenario_config)
+    if not scotland_zones:
+        return thermal_data
+
+    fuel_series = thermal_data.get("fuel_type", pd.Series("", index=thermal_data.index)).astype(str).str.casefold()
+    source_series = thermal_data.get("data_source", pd.Series("", index=thermal_data.index)).astype(str)
+    nuclear_mask = fuel_series.eq("nuclear") & source_series.str.contains("FES", case=False, na=False)
+    scotland_mask = thermal_data["bus"].astype(str).isin(scotland_zones)
+    remove_mask = nuclear_mask & scotland_mask
+    if not remove_mask.any():
+        return thermal_data
+
+    original_total = float(pd.to_numeric(thermal_data.loc[nuclear_mask, "capacity_mw"], errors="coerce").fillna(0.0).sum())
+    retained_mask = nuclear_mask & ~scotland_mask
+    retained_total = float(pd.to_numeric(thermal_data.loc[retained_mask, "capacity_mw"], errors="coerce").fillna(0.0).sum())
+
+    filtered = thermal_data.loc[~remove_mask].copy()
+    removed_rows = int(remove_mask.sum())
+    removed_capacity = float(pd.to_numeric(thermal_data.loc[remove_mask, "capacity_mw"], errors="coerce").fillna(0.0).sum())
+    logger.info(
+        "Removed %s Scottish fixed future nuclear rows (%.1f MW) via nuclear.future_fixed.exclude_scotland",
+        removed_rows,
+        removed_capacity,
+    )
+
+    if retained_total > 0 and original_total > retained_total:
+        scale = original_total / retained_total
+        retained_index = filtered.index[
+            filtered.get("fuel_type", pd.Series("", index=filtered.index)).astype(str).str.casefold().eq("nuclear")
+            & filtered.get("data_source", pd.Series("", index=filtered.index)).astype(str).str.contains("FES", case=False, na=False)
+        ]
+        filtered.loc[retained_index, "capacity_mw"] = (
+            pd.to_numeric(filtered.loc[retained_index, "capacity_mw"], errors="coerce").fillna(0.0) * scale
+        )
+        logger.info(
+            "Renormalized remaining fixed future nuclear rows by %.4f to preserve the GB nuclear envelope",
+            scale,
+        )
+
+    return filtered
+
+
+def load_smr_zone_land_caps(technical_potential_path: str | Path) -> pd.DataFrame:
+    """Load zonal SMR land caps from the technical-potential CSV."""
+    path = Path(str(technical_potential_path))
+    if not path.exists():
+        raise FileNotFoundError(f"Technical-potential CSV not found for SMR candidate workflow: {path}")
+
+    raw = pd.read_csv(path)
+    land_caps = build_land_cap_table(raw)
+    return land_caps[land_caps["carrier"] == "smr"].copy()
+
+
+def prepare_future_nuclear_rows_and_report(
+    network: pypsa.Network,
+    scenario_config: dict,
+    future_candidate_config: dict,
+    nuclear_sites_path: str | Path,
+    technical_potential_path: str | Path,
+    logger,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict[str, float]]:
+    """Build fixed baseline and extendable future nuclear rows plus reporting."""
+    modelled_year = int(scenario_config["modelled_year"])
+    fes_year = scenario_config["FES_year"]
+    fes_scenario = scenario_config["FES_scenario"]
+    nuclear_cfg = future_candidate_config.get("nuclear", {})
+    workbook_path = resolve_nuclear_workbook_path(
+        fes_year,
+        nuclear_cfg.get("workbook_paths", {}),
+    )
+    nuclear_split = load_fes_nuclear_capacity_split(
+        workbook_path=workbook_path,
+        modelled_year=modelled_year,
+        fes_scenario=fes_scenario,
+    )
+
+    capital_costs = future_candidate_config.get("capital_costs", {})
+    large_capital_cost = float(capital_costs.get("nuclear", 0.0))
+    smr_capital_cost = float(capital_costs.get("smr", 0.0))
+    retain_sites = (
+        scenario_config.get("nuclear", {})
+        .get("existing_asset_overrides", {})
+        .get("retain_sites", [])
+        or []
+    )
+
+    # Live fixed baseline at current nuclear sites.
+    live_nuclear_sites = load_live_nuclear_baseline_sites(
+        nuclear_sites_path=nuclear_sites_path,
+        modelled_year=modelled_year,
+        retain_sites=retain_sites,
+        logger=logger,
+    )
+    baseline_rows = live_nuclear_sites.copy()
+    if not baseline_rows.empty:
+        baseline_rows = ensure_wgs84_coordinates(baseline_rows)
+        baseline_rows["fuel_type"] = "nuclear"
+        baseline_rows["data_source"] = "Existing_nuclear_baseline"
+        baseline_rows = baseline_rows.rename(columns={"site_name": "station_name"})
+        baseline_rows = map_site_rows_to_buses(network, baseline_rows, logger)
+        baseline_rows = _remap_site_rows_across_scotland_boundary(
+            network,
+            baseline_rows,
+            scenario_config,
+            logger,
+        )
+
+    # Large nuclear candidate sites (EN-6).
+    en6_sites = load_en6_sites(nuclear_cfg["en6_sites_path"])
+    en6_sites = map_site_rows_to_buses(network, en6_sites, logger)
+    en6_sites = _remap_site_rows_across_scotland_boundary(
+        network,
+        en6_sites,
+        scenario_config,
+        logger,
+    )
+    en6_sites["zone_name"] = en6_sites["bus"].astype(str)
+    large_site_cap_mw = float(
+        scenario_config.get("nuclear", {})
+        .get("siting_constraints", {})
+        .get("large_nuclear", {})
+        .get("max_per_site_mw", 3400.0)
+    )
+    scotland_ban = _resolve_scotland_ban(scenario_config, "large_nuclear")
+    live_existing_large_total = float(
+        pd.to_numeric(baseline_rows.get("capacity_mw"), errors="coerce").fillna(0.0).sum()
+        if not baseline_rows.empty
+        else 0.0
+    )
+    large_headroom = build_large_nuclear_headroom_table(
+        en6_sites_df=en6_sites,
+        existing_sites_df=live_nuclear_sites,
+        site_cap_mw=large_site_cap_mw,
+        scotland_ban=scotland_ban,
+    )
+    large_headroom["candidate_group"] = "large_nuclear"
+    large_headroom["fes_group_total_mw"] = float(nuclear_split["large_nuclear_mw"])
+    large_headroom["effective_total_cap_mw"] = large_headroom["local_siting_cap_mw"]
+    large_headroom["extendable_headroom_pre_land_mw"] = large_headroom["local_headroom_mw"]
+    large_headroom["extendable_headroom_mw"] = large_headroom["local_headroom_mw"]
+    large_headroom["land_binding"] = False
+    large_headroom["existing_oversubscribed"] = large_headroom["oversubscribed"]
+    large_headroom["possible_preallocation_artifact"] = False
+    large_candidates = build_large_nuclear_candidate_rows(
+        headroom_df=large_headroom,
+        modelled_year=modelled_year,
+        capital_cost=large_capital_cost,
+    )
+
+    # SMR anchor allocation: pre-land FES shares plus land-cap metadata for the policy layer.
+    smr_anchors = load_smr_anchors(nuclear_cfg["smr_anchors_path"])
+    smr_anchors = map_site_rows_to_buses(network, smr_anchors, logger)
+    smr_anchors["zone_name"] = smr_anchors["bus"].astype(str)
+    smr_anchors = _filter_smr_anchors_for_scenario(smr_anchors, scenario_config, logger)
+    smr_zone_land_caps = load_smr_zone_land_caps(technical_potential_path)
+    smr_zone_land_caps = _apply_allowed_smr_anchor_land_floor(
+        smr_anchors,
+        smr_zone_land_caps,
+        scenario_config,
+        logger,
+    )
+    smr_headroom, smr_unallocated = _build_smr_headroom_with_scottish_overlay(
+        anchors_df=smr_anchors,
+        zone_land_caps_df=smr_zone_land_caps,
+        national_fes_total_mw=float(nuclear_split["smr_mw"]),
+        demand_weights=nuclear_cfg.get("smr_demand_weights", {}),
+        scenario_config=scenario_config,
+        logger=logger,
+        zone_col="zone_name",
+    )
+    smr_headroom["candidate_group"] = "smr"
+    smr_headroom["fes_group_total_mw"] = float(nuclear_split["smr_mw"])
+    smr_headroom["effective_total_cap_mw"] = smr_headroom["zone_land_cap_mw"]
+    smr_headroom["extendable_headroom_pre_land_mw"] = smr_headroom["anchor_fes_share_mw"]
+    smr_headroom["extendable_headroom_mw"] = smr_headroom["anchor_land_cap_mw"]
+    smr_headroom["land_binding"] = (
+        smr_headroom["anchor_land_cap_mw"]
+        < (smr_headroom["anchor_fes_share_mw"] - 1e-9)
+    )
+    smr_headroom["existing_oversubscribed"] = smr_headroom["oversubscribed"]
+    smr_headroom["possible_preallocation_artifact"] = False
+    smr_candidates = build_smr_candidate_rows(
+        headroom_df=smr_headroom,
+        modelled_year=modelled_year,
+        capital_cost=smr_capital_cost,
+    )
+
+    nuclear_report = build_future_nuclear_report_table(
+        large_headroom=large_headroom,
+        smr_headroom=smr_headroom,
+        smr_unallocated=smr_unallocated,
+        smr_group_total_mw=float(nuclear_split["smr_mw"]),
+    )
+    shared_caps = {
+        "large_nuclear_fes_total_mw": float(nuclear_split["large_nuclear_mw"]),
+        "large_nuclear_live_existing_mw": live_existing_large_total,
+        "large_nuclear_national_headroom_mw": max(
+            float(nuclear_split["large_nuclear_mw"]) - live_existing_large_total,
+            0.0,
+        ),
+        "smr_fes_total_mw": float(nuclear_split["smr_mw"]),
+        "smr_live_existing_mw": 0.0,
+        "smr_national_headroom_mw": max(float(nuclear_split["smr_mw"]), 0.0),
+    }
+
+    return baseline_rows, pd.concat([large_candidates, smr_candidates], ignore_index=True, sort=False), nuclear_report, shared_caps
 
 
 def build_historical_bus_distribution(network: pypsa.Network, carrier: str) -> dict:
@@ -769,7 +1498,11 @@ def get_solve_mode() -> str:
     return 'LP'
 
 
-def apply_plant_phase_out_filtering(df: pd.DataFrame, modelled_year: int) -> pd.DataFrame:
+def apply_plant_phase_out_filtering(
+    df: pd.DataFrame,
+    modelled_year: int,
+    retain_sites: list[str] | None = None,
+) -> pd.DataFrame:
     """
     Remove generators that have been decommissioned before the modelled year.
 
@@ -791,6 +1524,8 @@ def apply_plant_phase_out_filtering(df: pd.DataFrame, modelled_year: int) -> pd.
     """
     if len(df) == 0 or modelled_year is None:
         return df
+
+    retain_sites = [str(site).strip() for site in (retain_sites or []) if str(site).strip()]
 
     initial_count = len(df)
     initial_capacity = df['capacity_mw'].sum()
@@ -820,6 +1555,11 @@ def apply_plant_phase_out_filtering(df: pd.DataFrame, modelled_year: int) -> pd.
 
             # Match by partial name (e.g. "Ratcliffe" matches "Ratcliffe (Steam)")
             mask = df['station_name'].str.contains(plant_name, case=False, na=False)
+            if retain_sites:
+                retain_mask = pd.Series(False, index=df.index)
+                for retained in retain_sites:
+                    retain_mask = retain_mask | df['station_name'].str.contains(retained, case=False, na=False)
+                mask = mask & ~retain_mask
             if mask.any():
                 matched = df[mask]
                 for _, gen in matched.iterrows():
@@ -1206,7 +1946,8 @@ def load_repd_thermal_sites(site_files: dict) -> pd.DataFrame:
 def scale_repd_bioenergy_to_fes(repd_df: pd.DataFrame,
                                  modelled_year: int,
                                  fes_pathway: str = None,
-                                 fes_data_path: str = None) -> pd.DataFrame:
+                                 fes_data_path: str = None,
+                                 fes_year: int | None = None) -> pd.DataFrame:
     """
     Scale REPD bioenergy generators to match FES capacity targets for future scenarios.
     
@@ -1240,7 +1981,7 @@ def scale_repd_bioenergy_to_fes(repd_df: pd.DataFrame,
     
     # Default FES data path
     if fes_data_path is None:
-        fes_data_path = Path(__file__).parent.parent / "resources" / "FES" / "FES_2024_data.csv"
+        fes_data_path = get_fes_data_path(fes_year or 2025)
     
     if not Path(fes_data_path).exists():
         logger.warning(f"FES data file not found: {fes_data_path} - cannot scale REPD bioenergy")
@@ -1494,6 +2235,8 @@ def add_thermal_generators(network: pypsa.Network, thermal_data: pd.DataFrame, f
             'coal / oil': 'coal',            # Coal stations with oil backup/start-up
             # Nuclear
             'nuclear': 'nuclear',
+            'smr': 'smr',
+            'small modular reactor': 'smr',
             # Bioenergy / waste
             'biomass': 'biomass',
             'waste': 'waste_to_energy',
@@ -1534,9 +2277,11 @@ def add_thermal_generators(network: pypsa.Network, thermal_data: pd.DataFrame, f
         raw_fuel = row['fuel_type']
         fuel_type = _normalize_fuel_to_carrier(raw_fuel)
         capacity_mw = float(row['capacity_mw'])
+        is_extendable = bool(row['p_nom_extendable']) if 'p_nom_extendable' in row and pd.notna(row['p_nom_extendable']) else False
+        p_nom_max = pd.to_numeric(row.get('p_nom_max'), errors='coerce') if 'p_nom_max' in row else np.nan
         
-        # Skip zero/negative capacity
-        if capacity_mw <= 0:
+        # Skip zero/negative fixed capacity, but keep extendable candidates with headroom.
+        if capacity_mw <= 0 and not (is_extendable and pd.notna(p_nom_max) and float(p_nom_max) > 0):
             continue
         
         # Generate generator name if not provided
@@ -1650,6 +2395,20 @@ def add_thermal_generators(network: pypsa.Network, thermal_data: pd.DataFrame, f
         # Add data source if available
         if 'data_source' in row:
             gen_attrs['data_source'] = str(row['data_source'])
+
+        # Optional per-row overrides used by future FES candidate generators.
+        if is_extendable:
+            gen_attrs['p_nom_extendable'] = True
+        if 'p_nom_min' in row and pd.notna(row['p_nom_min']):
+            gen_attrs['p_nom_min'] = float(row['p_nom_min'])
+        if 'p_nom_max' in row and pd.notna(row['p_nom_max']):
+            gen_attrs['p_nom_max'] = float(row['p_nom_max'])
+        if 'capital_cost' in row and pd.notna(row['capital_cost']):
+            gen_attrs['capital_cost'] = float(row['capital_cost'])
+        if 'efficiency' in row and pd.notna(row['efficiency']):
+            gen_attrs['efficiency'] = float(row['efficiency'])
+        if 'marginal_cost' in row and pd.notna(row['marginal_cost']):
+            gen_attrs['marginal_cost'] = float(row['marginal_cost'])
         
         # Add coordinates if available (needed for plotting and validation)
         if 'lat' in row and pd.notna(row['lat']):
@@ -1659,6 +2418,18 @@ def add_thermal_generators(network: pypsa.Network, thermal_data: pd.DataFrame, f
         
         try:
             network.add("Generator", gen_name, **gen_attrs)
+            for metadata_column in [
+                'future_candidate_group',
+                'future_candidate_site_id',
+                'future_candidate_anchor_id',
+                'future_candidate_label',
+                'future_candidate_country',
+                'future_candidate_anchor_type',
+                'future_candidate_local_cap_mw',
+                'future_candidate_land_cap_mw',
+            ]:
+                if metadata_column in row and pd.notna(row[metadata_column]):
+                    network.generators.loc[gen_name, metadata_column] = row[metadata_column]
             generators_added += 1
             idx_count += 1
         except Exception as e:
@@ -1713,7 +2484,14 @@ def main():
         scenario_config = snk.params.scenario_config
         modelled_year = scenario_config.get('modelled_year', 2020)
         fes_scenario = scenario_config.get('FES_scenario', None)  # FES pathway from config
-        
+        future_candidate_config = normalize_future_capacity_candidates_config(
+            snk.params.future_capacity_candidates_config
+        )
+        future_capacity_report = load_existing_future_capacity_report(
+            snk.input.renewable_future_capacity_report
+        )
+        future_nuclear_shared_caps = {}
+
         logger.info(f"Scenario: {scenario_name}, Modelled Year: {modelled_year}")
         if fes_scenario:
             logger.info(f"FES Scenario/Pathway: {fes_scenario}")
@@ -2005,7 +2783,83 @@ def main():
             thermal_data = apply_etys_bmu_mapping(thermal_data, network)
             
             stage_times['3.5. ETYS BMU mapping'] = time.time() - stage_start_bmu
-        
+
+        # =====================================================================
+        # STAGE 3.6: APPLY SCOTLAND FIXED-FUTURE NUCLEAR OVERRIDE
+        # =====================================================================
+        stage_start_scotland_nuclear = time.time()
+        thermal_data = apply_fixed_future_nuclear_scotland_override(
+            thermal_data,
+            scenario_config,
+            logger,
+        )
+        stage_times['3.6. Scotland fixed future nuclear override'] = time.time() - stage_start_scotland_nuclear
+
+        # =====================================================================
+        # STAGE 3.75: BUILD FUTURE NUCLEAR BASELINE + CANDIDATE ROWS
+        # =====================================================================
+        stage_start_nuclear = time.time()
+        future_nuclear_enabled = (
+            future_candidate_config.get("enabled", False)
+            and len(fes_df) > 0
+            and len(dukes_df) == 0
+            and "nuclear" in set(future_candidate_config.get("carriers", []))
+            and future_candidate_config.get("nuclear", {}).get("enabled", False)
+        )
+
+        if future_nuclear_enabled:
+            logger.info("-" * 80)
+            logger.info("PART 3.75: BUILDING FUTURE NUCLEAR BASELINE AND CANDIDATES")
+            logger.info("-" * 80)
+
+            nuclear_mask = thermal_data["fuel_type"].astype(str).str.casefold().eq("nuclear")
+            nuclear_rows_removed = int(nuclear_mask.sum())
+            if nuclear_rows_removed > 0:
+                logger.info(
+                    "Removing %s generic FES nuclear rows so workbook-based nuclear candidates can replace them",
+                    nuclear_rows_removed,
+                )
+                thermal_data = thermal_data.loc[~nuclear_mask].copy()
+
+            baseline_rows, nuclear_candidate_rows, nuclear_report, future_nuclear_shared_caps = (
+                prepare_future_nuclear_rows_and_report(
+                    network=network,
+                    scenario_config=scenario_config,
+                    future_candidate_config=future_candidate_config,
+                    nuclear_sites_path=snk.input.nuclear_sites,
+                    technical_potential_path=snk.input.technical_potential,
+                    logger=logger,
+                )
+            )
+
+            frames_to_concat = [thermal_data]
+            if len(baseline_rows) > 0:
+                frames_to_concat.append(baseline_rows)
+            if len(nuclear_candidate_rows) > 0:
+                frames_to_concat.append(nuclear_candidate_rows)
+            thermal_data = pd.concat(frames_to_concat, ignore_index=True, sort=False)
+
+            logger.info(
+                "Added %s fixed nuclear baseline rows and %s future nuclear candidate rows",
+                len(baseline_rows),
+                len(nuclear_candidate_rows),
+            )
+            if future_nuclear_shared_caps:
+                logger.info(
+                    "Future nuclear shared caps: large headroom %.1f MW, SMR headroom %.1f MW",
+                    float(future_nuclear_shared_caps.get("large_nuclear_national_headroom_mw", 0.0)),
+                    float(future_nuclear_shared_caps.get("smr_national_headroom_mw", 0.0)),
+                )
+
+            report_frames = [df for df in [future_capacity_report, nuclear_report] if df is not None and len(df) > 0]
+            future_capacity_report = (
+                pd.concat(report_frames, ignore_index=True, sort=False)
+                if report_frames
+                else empty_future_capacity_report()
+            )
+
+        stage_times['3.75. Future nuclear candidates'] = time.time() - stage_start_nuclear
+
         # =====================================================================
         # STAGE 4: ADD THERMAL GENERATORS TO NETWORK
         # =====================================================================
@@ -2059,6 +2913,10 @@ def main():
             thermal_data,
             fuel_data_path=str(snk.input.fuel_data)
         )
+        if future_nuclear_shared_caps:
+            if not hasattr(network, "meta") or network.meta is None:
+                network.meta = {}
+            network.meta["future_nuclear_candidate_caps"] = future_nuclear_shared_caps
         thermal_added = len(network.generators) - thermal_before
         logger.info(f"Added {thermal_added} thermal generators to network")
         stage_times['4. Add generators'] = time.time() - stage_start
@@ -2296,6 +3154,10 @@ def main():
         summary_path = snk.output.summary
         logger.info(f"Saving thermal summary to {summary_path}")
         summary_df.to_csv(summary_path, index=False)
+
+        future_report_path = snk.output.future_capacity_report
+        logger.info(f"Saving future-capacity report to {future_report_path}")
+        write_future_capacity_report(future_capacity_report, future_report_path)
         stage_times['6. Save outputs'] = time.time() - stage_start
         
         # COORDINATE VALIDATION: Ensure all buses use consistent OSGB36 coordinates

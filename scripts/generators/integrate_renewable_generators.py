@@ -50,12 +50,122 @@ from scripts.utilities.spatial_utils import map_sites_to_buses, apply_etys_bmu_m
 
 # Import renewable aggregation (capacity-weighted merge per bus+carrier)
 from scripts.generators.aggregate_renewable_generators import aggregate_renewables_by_bus
+from scripts.generators.future_capacity_candidates import (
+    aggregate_capacity_by_carrier_bus,
+    build_candidate_headroom_table,
+    build_candidate_rows,
+    build_land_cap_table,
+    normalize_future_capacity_candidates_config,
+)
 
 # Inlined helpers and functions from scripts/add_generators.py to make this script
 # self-contained and avoid cross-module imports that cause multiple loggers.
 
 # Caches to avoid reloading profiles
 _PROFILE_CACHE = {}
+FUTURE_CAPACITY_REPORT_COLUMNS = [
+    "carrier",
+    "zone_name",
+    "bus",
+    "fes_spatial_cap_mw",
+    "land_cap_mw",
+    "effective_total_cap_mw",
+    "live_existing_capacity_mw",
+    "extendable_headroom_pre_land_mw",
+    "extendable_headroom_mw",
+    "land_binding",
+    "existing_oversubscribed",
+    "possible_preallocation_artifact",
+    "oversubscribed",
+    "oversubscription_amount_mw",
+]
+
+
+def empty_future_capacity_report() -> pd.DataFrame:
+    """Return an empty report with the standard future-capacity columns."""
+    return pd.DataFrame(columns=FUTURE_CAPACITY_REPORT_COLUMNS)
+
+
+def write_future_capacity_report(report_df: pd.DataFrame, report_path: str, logger: logging.Logger) -> None:
+    """Write the future-capacity report, preserving schema for empty outputs."""
+    output_df = report_df.copy() if report_df is not None else empty_future_capacity_report()
+    if output_df.empty:
+        output_df = empty_future_capacity_report()
+    else:
+        for column in FUTURE_CAPACITY_REPORT_COLUMNS:
+            if column not in output_df.columns:
+                output_df[column] = np.nan
+        output_df = output_df[FUTURE_CAPACITY_REPORT_COLUMNS]
+    Path(report_path).parent.mkdir(parents=True, exist_ok=True)
+    output_df.to_csv(report_path, index=False)
+    logger.info(f"Saved future-capacity report to {report_path}")
+
+
+def load_technical_potential_for_reporting(csv_path, logger: logging.Logger) -> pd.DataFrame:
+    """Load and normalize land technical-potential caps for reporting."""
+    if not csv_path:
+        return pd.DataFrame(columns=["carrier", "zone_name", "land_cap_mw"])
+
+    if isinstance(csv_path, (list, tuple)):
+        if len(csv_path) == 0:
+            return pd.DataFrame(columns=["carrier", "zone_name", "land_cap_mw"])
+        csv_path = csv_path[0]
+
+    csv_path = str(csv_path)
+    if not csv_path or not Path(csv_path).exists():
+        logger.warning(f"Technical-potential CSV not found for reporting: {csv_path}")
+        return pd.DataFrame(columns=["carrier", "zone_name", "land_cap_mw"])
+
+    technical_potential_df = pd.read_csv(csv_path)
+    if technical_potential_df.empty:
+        return pd.DataFrame(columns=["carrier", "zone_name", "land_cap_mw"])
+
+    required_cols = {"zone_name", "carrier", "p_nom_max_mw"}
+    missing = required_cols - set(technical_potential_df.columns)
+    if missing:
+        logger.warning(
+            f"Technical-potential CSV missing required columns for future-capacity reporting: {sorted(missing)}"
+        )
+        return pd.DataFrame(columns=["carrier", "zone_name", "land_cap_mw"])
+
+    return build_land_cap_table(technical_potential_df)
+
+
+def load_future_baseline_candidate_sites(
+    site_files: Dict[str, str],
+    candidate_carriers: List[str],
+    modelled_year: int,
+    logger: logging.Logger,
+) -> pd.DataFrame:
+    """Load fixed live renewable sites that should occupy future candidate headroom."""
+    baseline_sites = []
+    for carrier in candidate_carriers:
+        site_file = site_files.get(carrier)
+        if not site_file or not Path(site_file).exists():
+            logger.warning(f"Baseline site file not found for {carrier}: {site_file}")
+            continue
+
+        sites_df = pd.read_csv(site_file)
+        if sites_df.empty:
+            continue
+
+        sites_df["technology"] = carrier
+        sites_df = filter_sites_by_year(sites_df, modelled_year, logger)
+        if sites_df.empty:
+            continue
+
+        baseline_sites.append(sites_df)
+
+    if not baseline_sites:
+        return pd.DataFrame()
+
+    combined = pd.concat(baseline_sites, ignore_index=True)
+    logger.info(
+        "Loaded %s fixed baseline renewable sites for future-capacity candidates (%.1f MW)",
+        len(combined),
+        combined["capacity_mw"].sum() if "capacity_mw" in combined.columns else 0.0,
+    )
+    return combined
 
 
 def filter_sites_by_year(sites_df: pd.DataFrame, modelled_year: int, 
@@ -442,6 +552,24 @@ def add_renewable_generators(
                 'ramp_limit_down': None,  # No ramp constraint
             })
             logger.debug(f"  No characteristics found for {carrier}, using defaults")
+
+        # Optional per-site overrides used by future FES candidate generators.
+        if 'p_nom_extendable' in site and pd.notna(site['p_nom_extendable']):
+            gen_attrs['p_nom_extendable'] = bool(site['p_nom_extendable'])
+        if 'p_nom_min' in site and pd.notna(site['p_nom_min']):
+            gen_attrs['p_nom_min'] = float(site['p_nom_min'])
+        if 'p_nom_max' in site and pd.notna(site['p_nom_max']):
+            gen_attrs['p_nom_max'] = float(site['p_nom_max'])
+        if 'capital_cost' in site and pd.notna(site['capital_cost']):
+            gen_attrs['capital_cost'] = float(site['capital_cost'])
+        for metadata_column in [
+            'future_candidate_fes_spatial_cap_mw',
+            'future_candidate_live_existing_capacity_mw',
+            'future_candidate_zonal_land_cap_mw',
+        ]:
+            if metadata_column in site and pd.notna(site[metadata_column]):
+                gen_attrs[metadata_column] = float(site[metadata_column])
+
         generators_to_add.append(gen_attrs)
         if carrier in profiles:
             profile_df = profiles[carrier]
@@ -1013,7 +1141,7 @@ def load_fes_renewable_generators(
     3. Maps GSP locations to network buses
     4. Returns a DataFrame in the same format as REPD site data
     
-    FES 2024 Data Structure:
+    Current FES data structure:
     - Offshore Wind: Technology='Wind' + Technology Detail='Offshore Wind'
     - Onshore Wind: Technology=NaN + Technology Detail='Onshore Wind >=1MW' or '<1MW'
     - Solar: Technology='Solar Generation' + Technology Detail='Large (G99)' or 'Small (G98/G83)'
@@ -1373,11 +1501,17 @@ def main():
         scenario_config = snk.params.scenario_config
         modelled_year = scenario_config.get('modelled_year', None)
         is_historical = snk.params.get('is_historical', True)  # Default to historical for safety
+        future_candidate_config = normalize_future_capacity_candidates_config(
+            snk.params.get('future_capacity_candidates_config', {})
+        )
+        future_candidate_enabled = (not is_historical) and future_candidate_config.get("enabled", False)
+        future_capacity_report = empty_future_capacity_report()
         
         logger.info(f"Scenario: {scenario_name}")
         if modelled_year:
             logger.info(f"Modelled Year: {modelled_year}")
         logger.info(f"Scenario Type: {'HISTORICAL (REPD sites)' if is_historical else 'FUTURE (FES projections)'}")
+        logger.info(f"Future capacity candidates enabled: {future_candidate_enabled}")
         
         # STAGE 1: Load network
         stage_start = time.time()
@@ -1457,6 +1591,7 @@ def main():
                 # Save network anyway (no changes) and create empty summary
                 save_network(network, snk.output.network, custom_logger=logger)
                 pd.DataFrame(columns=['technology', 'capacity_mw', 'count']).to_csv(snk.output.summary, index=False)
+                write_future_capacity_report(future_capacity_report, snk.output.future_capacity_report, logger)
                 log_stage_summary(stage_times, logger, "RENEWABLE INTEGRATION - STAGE TIMING")
                 return
             
@@ -1480,15 +1615,43 @@ def main():
                 logger.warning("No FES renewable capacity found for this scenario")
                 save_network(network, snk.output.network, custom_logger=logger)
                 pd.DataFrame(columns=['technology', 'capacity_mw', 'count']).to_csv(snk.output.summary, index=False)
+                write_future_capacity_report(future_capacity_report, snk.output.future_capacity_report, logger)
                 log_stage_summary(stage_times, logger, "RENEWABLE INTEGRATION - STAGE TIMING")
                 return
         
+        baseline_candidate_sites = pd.DataFrame()
+        fes_sites = renewable_sites.copy()
+
+        if future_candidate_enabled:
+            stage_start = time.time()
+            logger.info("-" * 80)
+            logger.info("LOADING FIXED BASELINE SITES FOR FUTURE-CAPACITY CANDIDATES")
+            logger.info("-" * 80)
+            baseline_site_files = {
+                'wind_onshore': snk.input.wind_onshore_sites,
+                'wind_offshore': snk.input.wind_offshore_sites,
+                'solar_pv': snk.input.solar_pv_sites,
+            }
+            baseline_candidate_sites = load_future_baseline_candidate_sites(
+                site_files=baseline_site_files,
+                candidate_carriers=future_candidate_config.get("carriers", []),
+                modelled_year=modelled_year,
+                logger=logger,
+            )
+            stage_times['3.5. Load fixed baseline sites'] = time.time() - stage_start
+
         # STAGE 4: Combine/summarize sites
         stage_start = time.time()
         total_sites = len(renewable_sites)
         total_capacity = renewable_sites['capacity_mw'].sum() if 'capacity_mw' in renewable_sites.columns else 0
         logger.info("-" * 80)
         logger.info(f"COMBINED RENEWABLE DATA: {total_sites} entries, {total_capacity:.2f} MW total")
+        if future_candidate_enabled and len(baseline_candidate_sites) > 0:
+            logger.info(
+                "Future-candidate baseline sites: %s entries, %.2f MW fixed existing capacity",
+                len(baseline_candidate_sites),
+                baseline_candidate_sites['capacity_mw'].sum(),
+            )
         logger.info("-" * 80)
         log_dataframe_info(renewable_sites, logger, "Combined renewable data")
         stage_times['4. Combine data'] = time.time() - stage_start
@@ -1508,18 +1671,33 @@ def main():
         else:  # Dense network (e.g., ETYS)
             max_distance_km = 200.0  # Normal threshold for dense networks
             logger.info(f"Using normal distance threshold ({max_distance_km}km) for dense network ({n_buses} buses)")
-        
-        renewable_sites = map_sites_to_buses(
+
+        fes_sites = map_sites_to_buses(
             network, 
-            renewable_sites,
+            fes_sites,
             method='nearest',
             lon_col='lon',  # Use WGS84 longitude (consistent with network.buses['x'])
             lat_col='lat',  # Use WGS84 latitude (consistent with network.buses['y'])
             max_distance_km=max_distance_km
         )
-        
-        mapped_sites = renewable_sites['bus'].notna().sum()
-        logger.info(f"Successfully mapped {mapped_sites}/{total_sites} sites to buses")
+
+        if future_candidate_enabled and len(baseline_candidate_sites) > 0:
+            baseline_candidate_sites = map_sites_to_buses(
+                network,
+                baseline_candidate_sites,
+                method='nearest',
+                lon_col='lon',
+                lat_col='lat',
+                max_distance_km=max_distance_km,
+            )
+
+        mapped_sites = fes_sites['bus'].notna().sum()
+        logger.info(f"Successfully mapped {mapped_sites}/{len(fes_sites)} FES renewable entries to buses")
+        if future_candidate_enabled and len(baseline_candidate_sites) > 0:
+            baseline_mapped_sites = baseline_candidate_sites['bus'].notna().sum()
+            logger.info(
+                f"Successfully mapped {baseline_mapped_sites}/{len(baseline_candidate_sites)} fixed baseline renewable sites to buses"
+            )
         stage_times['5. Map sites to buses'] = time.time() - stage_start
         
         # STAGE 5.5: Apply ETYS BMU-to-Node mapping for ETYS networks
@@ -1533,9 +1711,61 @@ def main():
             logger.info("-" * 80)
             logger.info("Large renewable generators (e.g., offshore wind) should connect to 400kV buses")
             
-            renewable_sites = apply_etys_bmu_mapping(renewable_sites, network)
+            fes_sites = apply_etys_bmu_mapping(fes_sites, network)
+            if future_candidate_enabled and len(baseline_candidate_sites) > 0:
+                baseline_candidate_sites = apply_etys_bmu_mapping(baseline_candidate_sites, network)
             
             stage_times['5.5. ETYS BMU mapping'] = time.time() - stage_start_bmu
+
+        if future_candidate_enabled:
+            stage_start = time.time()
+            logger.info("-" * 80)
+            logger.info("BUILDING FUTURE FES CAPACITY CANDIDATES")
+            logger.info("-" * 80)
+
+            candidate_carriers = future_candidate_config.get("carriers", [])
+            land_caps = load_technical_potential_for_reporting(
+                getattr(snk.input, "technical_potential", []),
+                logger,
+            )
+            fes_bus_caps = aggregate_capacity_by_carrier_bus(fes_sites, carrier_col="technology")
+            baseline_bus_caps = aggregate_capacity_by_carrier_bus(
+                baseline_candidate_sites, carrier_col="technology"
+            )
+            future_capacity_report = build_candidate_headroom_table(
+                fes_capacity_df=fes_bus_caps,
+                baseline_capacity_df=baseline_bus_caps,
+                candidate_carriers=candidate_carriers,
+                land_caps_df=land_caps,
+            )
+            candidate_rows = build_candidate_rows(
+                headroom_df=future_capacity_report,
+                modelled_year=modelled_year,
+                capital_costs=future_candidate_config.get("capital_costs", {}),
+            )
+
+            non_candidate_fes = fes_sites[
+                ~fes_sites["technology"].isin(candidate_carriers)
+            ].copy()
+            renewable_sites = pd.concat(
+                [baseline_candidate_sites, non_candidate_fes, candidate_rows],
+                ignore_index=True,
+                sort=False,
+            )
+
+            logger.info(
+                "Future-capacity candidates created: %s rows, %.1f MW pre-land headroom",
+                len(candidate_rows),
+                candidate_rows["p_nom_max"].sum() if "p_nom_max" in candidate_rows.columns else 0.0,
+            )
+            oversubscribed_rows = int(future_capacity_report["oversubscribed"].sum()) if len(future_capacity_report) > 0 else 0
+            logger.info(
+                "Oversubscribed carrier-zone rows relative to min(FES, land): %s",
+                oversubscribed_rows,
+            )
+            stage_times['5.6. Build future-capacity candidates'] = time.time() - stage_start
+        else:
+            renewable_sites = fes_sites
         
         # STAGE 6: Add renewable generators to network
         stage_start = time.time()
@@ -1580,6 +1810,13 @@ def main():
             
             from scripts.generators.aggregate_renewable_generators import DEFAULT_RENEWABLE_CARRIERS
             agg_carriers = agg_config.get('carriers', DEFAULT_RENEWABLE_CARRIERS)
+            if future_candidate_enabled:
+                candidate_carriers = set(future_candidate_config.get("carriers", []))
+                agg_carriers = [carrier for carrier in agg_carriers if carrier not in candidate_carriers]
+                logger.info(
+                    "Skipping aggregation for future-capacity candidate carriers: %s",
+                    sorted(candidate_carriers),
+                )
             
             pre_agg_count = len(network.generators)
             # Log per-carrier capacity before aggregation for verification
@@ -1641,6 +1878,9 @@ def main():
         summary_path = snk.output.summary
         logger.info(f"Saving renewable summary to {summary_path}")
         summary_df.to_csv(summary_path, index=False)
+        write_future_capacity_report(
+            future_capacity_report, snk.output.future_capacity_report, logger
+        )
         stage_times['8. Save outputs'] = time.time() - stage_start
         
         # COORDINATE VALIDATION: Ensure all buses use consistent OSGB36 coordinates
@@ -1668,7 +1908,8 @@ def main():
             'renewable_generators_added': added_generators,
             'total_renewable_capacity_mw': summary_df['capacity_mw'].sum() if len(summary_df) > 0 else 0,
             'technologies_integrated': len(summary_df),
-            'buses_with_renewables': renewable_sites['bus'].nunique()
+            'buses_with_renewables': renewable_sites['bus'].nunique(),
+            'future_capacity_candidates': int((renewable_sites.get('p_nom_extendable', pd.Series(dtype=bool)).fillna(False)).sum()) if len(renewable_sites) > 0 else 0,
         }
         
         log_execution_summary(logger, "integrate_renewable_generators", execution_time, summary_stats)

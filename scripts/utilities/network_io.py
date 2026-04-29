@@ -37,6 +37,9 @@ from pathlib import Path
 from typing import Optional, Dict, Any, Union
 import warnings
 
+import numpy as np
+import pandas as pd
+
 # Suppress PyPSA export warnings
 warnings.filterwarnings('ignore', message='The network has not been optimized yet')
 
@@ -56,6 +59,54 @@ NETCDF_COMPRESSION = {
 
 # Use pickle for intermediate files by default
 USE_PICKLE_INTERMEDIATE = os.environ.get('PYPSA_GB_FAST_IO', '1') == '1'
+
+# PyPSA handles its own component booleans during NetCDF export, but custom
+# metadata columns with dtype bool can make xarray/netCDF4 fail. Keep the core
+# fields untouched and coerce only custom marker metadata to numeric flags.
+PYPSA_CORE_BOOLEAN_COLUMNS = {
+    "active",
+    "build_year",
+    "committable",
+    "cyclic_state_of_charge",
+    "e_cyclic",
+    "e_nom_extendable",
+    "e_nom_mod",
+    "p_nom_extendable",
+    "s_nom_extendable",
+}
+
+CUSTOM_BOOLEAN_METADATA_COLUMNS = {
+    "explicit_h2_demand",
+    "h2_storage_bus",
+    "h2_storage_interface",
+    "is_demand_hub",
+}
+
+TRUE_LIKE_METADATA_VALUES = {"true", "1", "yes", "y", "t"}
+FALSE_LIKE_METADATA_VALUES = {"false", "0", "no", "n", "f", ""}
+
+STATIC_COMPONENT_TABLES = (
+    "buses",
+    "carriers",
+    "generators",
+    "loads",
+    "links",
+    "lines",
+    "stores",
+    "storage_units",
+    "transformers",
+)
+
+NOMINAL_SET_COLUMNS = {
+    "generators": ("Generator", "p_nom", "p_nom_extendable"),
+    "links": ("Link", "p_nom", "p_nom_extendable"),
+    "stores": ("Store", "e_nom", "e_nom_extendable"),
+    "storage_units": ("StorageUnit", "p_nom", "p_nom_extendable"),
+    "lines": ("Line", "s_nom", "s_nom_extendable"),
+    "transformers": ("Transformer", "s_nom", "s_nom_extendable"),
+}
+
+NOMINAL_SET_ZERO_TOLERANCE = 1e-9
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -113,6 +164,8 @@ def load_network(
         
     else:
         raise ValueError(f"Unsupported file format: {ext}. Use .nc or .pkl")
+
+    sanitize_nominal_set_constraints(network, log)
     
     elapsed = time.time() - start
     log.info(f"Network loaded in {elapsed:.2f}s: {len(network.buses)} buses, "
@@ -205,6 +258,7 @@ def _export_netcdf_optimized(
     try:
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', message='The network has not been optimized yet')
+            _sanitize_custom_bool_metadata_for_netcdf(network, log)
             
             # Export with encoding hints for better performance
             # Note: PyPSA's export_to_netcdf doesn't expose all xarray options directly
@@ -213,6 +267,141 @@ def _export_netcdf_optimized(
             
     finally:
         pypsa_logger.setLevel(original_level)
+
+
+def _coerce_bool_like_metadata_value(value) -> int | None:
+    """Convert one bool-like metadata value to 0/1, or None if unsupported."""
+    if pd.isna(value):
+        return 0
+    if isinstance(value, (bool, np.bool_)):
+        return int(value)
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        if float(value) in (0.0, 1.0):
+            return int(value)
+        return None
+    if isinstance(value, str):
+        normalized = value.strip().casefold()
+        if normalized in TRUE_LIKE_METADATA_VALUES:
+            return 1
+        if normalized in FALSE_LIKE_METADATA_VALUES:
+            return 0
+    return None
+
+
+def _coerce_bool_like_metadata_to_int8(series: pd.Series) -> pd.Series | None:
+    """Return an int8 bool-flag series if all values are bool-like."""
+    converted = series.map(_coerce_bool_like_metadata_value)
+    if converted.isna().any():
+        return None
+    return converted.astype("int8")
+
+
+def _metadata_type_summary(series: pd.Series) -> str:
+    """Summarise Python value types for export diagnostics."""
+    non_null = series.dropna()
+    if non_null.empty:
+        return "empty"
+    return ",".join(sorted({type(value).__name__ for value in non_null}))
+
+
+def _sanitize_custom_bool_metadata_for_netcdf(
+    network: pypsa.Network,
+    log: logging.Logger,
+) -> None:
+    """Convert custom boolean metadata columns to NetCDF-safe int8 flags.
+
+    PyPSA core boolean fields are preserved because PyPSA knows how to handle
+    their semantics. Custom marker columns such as ``explicit_h2_demand`` are
+    metadata only, so 0/1 flags preserve meaning while avoiding netCDF4 bool
+    dtype failures.
+    """
+    converted = []
+    for table_name in STATIC_COMPONENT_TABLES:
+        table = getattr(network, table_name, None)
+        if table is None or table.empty:
+            continue
+        for column in list(table.columns):
+            if column in PYPSA_CORE_BOOLEAN_COLUMNS:
+                continue
+            series = table[column]
+            coerced = _coerce_bool_like_metadata_to_int8(series)
+            if coerced is None and column not in CUSTOM_BOOLEAN_METADATA_COLUMNS:
+                continue
+            if coerced is None:
+                # Explicit marker columns are expected to be bool-like. If an
+                # unexpected token appears, leave it untouched so export fails
+                # loudly rather than silently rewriting non-boolean metadata.
+                continue
+            original_dtype = str(series.dtype)
+            original_types = _metadata_type_summary(series)
+            table[column] = coerced
+            converted.append(f"{table_name}.{column} ({original_dtype}; {original_types})")
+
+    if converted:
+        log.debug(
+            "Converted custom bool metadata to int8 before NetCDF export: %s",
+            ", ".join(converted),
+        )
+
+
+def sanitize_nominal_set_constraints(
+    network: pypsa.Network,
+    custom_logger: Optional[logging.Logger] = None,
+) -> None:
+    """Remove NetCDF round-trip artefacts from nominal ``*_set`` columns.
+
+    PyPSA's NetCDF import can reload empty nominal set columns as zeros. A
+    zero-valued ``p_nom_set``/``e_nom_set`` is not equivalent to missing data:
+    it asks PyPSA to create a fixed nominal-capacity constraint. That fails for
+    non-extendable assets, which have no nominal optimisation variable, and can
+    accidentally force extendable stores to zero. In this workflow zero means
+    "unset"; non-zero values on extendable assets remain available for explicit
+    fixed-investment experiments.
+    """
+    log = custom_logger or logger
+
+    for table_name, (component_name, attr, extendable_col) in NOMINAL_SET_COLUMNS.items():
+        table = getattr(network, table_name, None)
+        if table is None or table.empty:
+            continue
+
+        set_col = f"{attr}_set"
+        if set_col not in table.columns:
+            continue
+
+        set_values = pd.to_numeric(table[set_col], errors="coerce")
+        non_null = set_values.notna()
+        if not non_null.any():
+            continue
+
+        zero_artifacts = non_null & set_values.abs().le(NOMINAL_SET_ZERO_TOLERANCE)
+        if zero_artifacts.any():
+            table.loc[zero_artifacts, set_col] = np.nan
+            samples = ", ".join(map(str, table.index[zero_artifacts][:5]))
+            log.info(
+                "Cleared %s NetCDF zero artefacts from %s.%s; samples: %s",
+                int(zero_artifacts.sum()),
+                component_name,
+                set_col,
+                samples,
+            )
+
+        remaining = pd.to_numeric(table[set_col], errors="coerce").notna()
+        if not remaining.any() or extendable_col not in table.columns:
+            continue
+
+        extendable = table[extendable_col].fillna(False).astype(bool)
+        invalid_fixed = remaining & ~extendable
+        if invalid_fixed.any():
+            samples = ", ".join(map(str, table.index[invalid_fixed][:5]))
+            table.loc[invalid_fixed, set_col] = np.nan
+            log.warning(
+                "Cleared %s invalid %s.%s values from non-extendable assets; samples: %s",
+                int(invalid_fixed.sum()),
+                component_name,
+                set_col,
+                samples,
+            )
 
 
 # ══════════════════════════════════════════════════════════════════════════════

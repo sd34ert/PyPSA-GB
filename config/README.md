@@ -32,7 +32,7 @@ My_Historical_2020:
 My_Future_2035:
   description: "My future scenario"
   modelled_year: 2035
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   renewables_year: 2020       # Weather proxy year
   demand_year: 2020           # Demand baseline

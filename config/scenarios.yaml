@@ -3,11 +3,15 @@
 # ══════════════════════════════════════════════════════════════════════════════
 # Each scenario inherits from defaults.yaml - only specify what's DIFFERENT.
 #
+# OUTPUT PATTERN:
+#   - Solved networks: resources/network/{scenario}_solved.nc
+#   - Analysis outputs: resources/analysis/{scenario}_*.json|html|ipynb
+#
 # USAGE:
 #   1. Copy a template from the bottom of this file
 #   2. Modify only the values you need to change
 #   3. Add scenario ID to run_scenarios in config.yaml
-#   4. Validate: python scripts/validate_scenarios.py
+#   4. Validate: python config/config_loader.py --validate
 # ══════════════════════════════════════════════════════════════════════════════
 
 # ╔════════════════════════════════════════════════════════════════════════════╗
@@ -118,17 +122,6 @@ Historical_2020_reduced_6h:
     enabled: true
     start: "2020-01-01 00:00"
     end: "2020-01-01 05:00"
-
-Historical_2019_reduced:
-  description: "2019 Historical - Reduced Network"
-  modelled_year: 2019
-  renewables_year: 2019
-  demand_year: 2019
-  network_model: "Reduced"
-  solve_period:
-    enabled: true
-    start: "2019-01-01 00:00"
-    end: "2019-01-07 23:00"
 
 Historical_2017_reduced:
   description: "2017 Historical - Reduced Network"
@@ -270,9 +263,9 @@ Historical_2019_clustered:
 # ╚════════════════════════════════════════════════════════════════════════════╝
 
 HT35:
-  description: "FES 2024 Holistic Transition 2035 - Full ETYS"
+  description: "FES 2025 Holistic Transition 2035 - Full ETYS"
   modelled_year: 2035
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   renewables_year: 2020           # Weather proxy year
   demand_year: 2020               # Demand baseline (scaled to 2035)
@@ -283,9 +276,9 @@ HT35:
     end: "2035-01-01 01:00"
 
 HT35_flex:
-  description: "FES 2024 Holistic Transition 2035 - Full ETYS with EV flexibility"
+  description: "FES 2025 Holistic Transition 2035 - Full ETYS with EV flexibility"
   modelled_year: 2035
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   renewables_year: 2020           # Weather proxy year
   demand_year: 2020               # Demand baseline (scaled to 2035)
@@ -353,7 +346,7 @@ HT30_event_response:
     include_loads: true
 
 HT35_year:
-  description: "FES 2024 Holistic Transition 2035 - Full ETYS (1 year)"
+  description: "FES 2025 Holistic Transition 2035 - Full ETYS (1 year)"
   modelled_year: 2035
   FES_year: 2025
   FES_scenario: "Holistic Transition"
@@ -373,9 +366,9 @@ HT35_year:
     end: "2035-12-31 23:00"
 
 HT35_without_network_upgrades:
-  description: "FES 2024 Holistic Transition 2035 - Full ETYS with Network Upgrades"
+  description: "FES 2025 Holistic Transition 2035 - Full ETYS with Network Upgrades"
   modelled_year: 2035
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   renewables_year: 2020           # Weather proxy year
   demand_year: 2020               # Demand baseline (scaled to 2035)
@@ -389,18 +382,18 @@ HT35_without_network_upgrades:
     end: "2035-01-07 23:00"
 
 HT35_reduced:
-  description: "FES 2024 Holistic Transition 2035 - Reduced Network"
+  description: "FES 2025 Holistic Transition 2035 - Reduced Network"
   modelled_year: 2035
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   renewables_year: 2020
   demand_year: 2010
   network_model: "Reduced"
 
 HT35_reduced_eload:
-  description: "FES 2024 HT 2035 - Reduced Network with eLOAD profile"
+  description: "FES 2025 HT 2035 - Reduced Network with eLOAD profile"
   modelled_year: 2035
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   renewables_year: 2020
   demand_year: 2020
@@ -409,9 +402,9 @@ HT35_reduced_eload:
   # profile_year: 2010            # Optional: 2010 or 2050 (auto-selects 2010 for 2035)
 
 HT35_reduced_desstinee:
-  description: "FES 2024 HT 2035 - Reduced Network with DESSTINEE profile"
+  description: "FES 2025 HT 2035 - Reduced Network with DESSTINEE profile"
   modelled_year: 2035
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   renewables_year: 2020
   demand_year: 2020
@@ -420,9 +413,9 @@ HT35_reduced_desstinee:
   # profile_year: 2010            # Optional: 2010 or 2050 (auto-selects 2010 for 2035)
 
 HT50_reduced_eload_2050:
-  description: "FES 2024 HT 2050 - Reduced with eLOAD 2050 profile"
+  description: "FES 2025 HT 2050 - Reduced with eLOAD 2050 profile"
   modelled_year: 2050
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   renewables_year: 2020
   demand_year: 2020
@@ -431,18 +424,1847 @@ HT50_reduced_eload_2050:
   profile_year: 2050              # Explicit: use 2050 profile (higher EV/HP load)
 
 HT35_zonal:
-  description: "FES 2024 Holistic Transition 2035 - Zonal Network"
+  description: "FES 2025 Holistic Transition 2035 - Zonal Network"
   modelled_year: 2035
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   renewables_year: 2020
   demand_year: 2015
   network_model: "Zonal"
+  solve_period:
+    enabled: true
+    start: "2035-01-01 00:00"
+    end: "2035-01-07 23:00"
+  future_capacity_candidates:
+    enabled: true
+  technical_potential_constraints:
+    enabled: false
+
+HT35_zonal_constrained:
+  description: "FES 2025 Holistic Transition 2035 - Zonal Network with technical potential constraints"
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solve_period:
+    enabled: true
+    start: "2035-01-01 00:00"
+    end: "2035-01-07 23:00"
+  future_capacity_candidates:
+    enabled: true
+  technical_potential_constraints:
+    enabled: true
+
+HT35_zonal_h2_full:
+  description: "FES 2025 Holistic Transition 2035 - Zonal Network with full hydrogen network and nuclear-to-hydrogen scaffold"
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solve_period:
+    enabled: true
+    start: "2035-01-01 00:00"
+    end: "2035-01-07 23:00"
+  future_capacity_candidates:
+    enabled: true
+  hydrogen:
+    network:
+      mode: "full"
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_base:
+  description: "FES 2025 Holistic Transition 2035 - Scotland-focused base case with 12.0 TWh explicit Scottish H2 demand as the working central case rounded from the Table 4.1 hub-based reference scale in a GB-integrated zonal electricity-hydrogen model"
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver:
+    threads: 0
+    method: 1
+  solve_period:
+    enabled: false
+  future_capacity_candidates:
+    enabled: true
+  technical_potential_constraints:
+    enabled: true
+  hydrogen:
+    network:
+      mode: "full"
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 12.0
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear:
+    future_fixed:
+      exclude_scotland: true
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: true
+        allowed_anchor_ids: []
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_base_6twh:
+  description: "FES 2025 Holistic Transition 2035 - Scotland-focused base case with 6 TWh explicit Scottish H2 demand as a conservative lower-demand sensitivity in a GB-integrated zonal electricity-hydrogen model"
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver:
+    threads: 0
+    method: 1
+  solve_period:
+    enabled: false
+  future_capacity_candidates:
+    enabled: true
+  technical_potential_constraints:
+    enabled: true
+  hydrogen:
+    network:
+      mode: "full"
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 6.0
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear:
+    future_fixed:
+      exclude_scotland: true
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: true
+        allowed_anchor_ids: []
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_base_13p2twh:
+  description: "FES 2025 Holistic Transition 2035 - Scotland-focused base case with 13.2 TWh explicit Scottish H2 demand as the revised higher-demand sensitivity in a GB-integrated zonal electricity-hydrogen model"
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver:
+    threads: 0
+    method: 1
+  solve_period:
+    enabled: false
+  future_capacity_candidates:
+    enabled: true
+  technical_potential_constraints:
+    enabled: true
+  hydrogen:
+    network:
+      mode: "full"
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 13.2
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear:
+    future_fixed:
+      exclude_scotland: true
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: true
+        allowed_anchor_ids: []
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_base_6twh_smoke:
+  description: "24-hour QA/preflight parity run for the Scotland base case with 6.0 TWh explicit Scottish H2 demand in a GB-integrated zonal electricity-hydrogen model"
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver:
+    threads: 0
+    method: 1
+  solve_period:
+    enabled: true
+    start: "2035-01-01 00:00"
+    end: "2035-01-01 23:00"
+  future_capacity_candidates:
+    enabled: true
+  technical_potential_constraints:
+    enabled: true
+  hydrogen:
+    network:
+      mode: "full"
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 6.0
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear:
+    future_fixed:
+      exclude_scotland: true
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: true
+        allowed_anchor_ids: []
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_base_12twh_smoke:
+  description: "24-hour QA/preflight parity run for the Scotland base case with 12.0 TWh explicit Scottish H2 demand in a GB-integrated zonal electricity-hydrogen model"
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver:
+    threads: 0
+    method: 1
+  solve_period:
+    enabled: true
+    start: "2035-01-01 00:00"
+    end: "2035-01-01 23:00"
+  future_capacity_candidates:
+    enabled: true
+  technical_potential_constraints:
+    enabled: true
+  hydrogen:
+    network:
+      mode: "full"
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 12.0
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear:
+    future_fixed:
+      exclude_scotland: true
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: true
+        allowed_anchor_ids: []
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_base_13p2twh_smoke:
+  description: "24-hour QA/preflight parity run for the Scotland base case with 13.2 TWh explicit Scottish H2 demand in a GB-integrated zonal electricity-hydrogen model"
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver:
+    threads: 0
+    method: 1
+  solve_period:
+    enabled: true
+    start: "2035-01-01 00:00"
+    end: "2035-01-01 23:00"
+  future_capacity_candidates:
+    enabled: true
+  technical_potential_constraints:
+    enabled: true
+  hydrogen:
+    network:
+      mode: "full"
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 13.2
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear:
+    future_fixed:
+      exclude_scotland: true
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: true
+        allowed_anchor_ids: []
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_torness_ext:
+  description: "FES 2025 Holistic Transition 2035 - Scotland-focused Torness extension sensitivity with 12.0 TWh explicit Scottish H2 demand as the working central case rounded from the Table 4.1 hub-based reference scale in a GB-integrated zonal electricity-hydrogen model"
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver:
+    threads: 0
+    method: 1
+  solve_period:
+    enabled: false
+  future_capacity_candidates:
+    enabled: true
+  technical_potential_constraints:
+    enabled: true
+  hydrogen:
+    network:
+      mode: "full"
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 12.0
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear:
+    future_fixed:
+      exclude_scotland: true
+    existing_asset_overrides:
+      retain_sites: ["Torness"]
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: true
+        allowed_anchor_ids: []
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_torness_ext_6twh:
+  description: "FES 2025 Holistic Transition 2035 - Scotland-focused Torness extension sensitivity with 6 TWh explicit Scottish H2 demand as a conservative lower-demand sensitivity in a GB-integrated zonal electricity-hydrogen model"
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver:
+    threads: 0
+    method: 1
+  solve_period:
+    enabled: false
+  future_capacity_candidates:
+    enabled: true
+  technical_potential_constraints:
+    enabled: true
+  hydrogen:
+    network:
+      mode: "full"
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 6.0
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear:
+    future_fixed:
+      exclude_scotland: true
+    existing_asset_overrides:
+      retain_sites: ["Torness"]
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: true
+        allowed_anchor_ids: []
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_torness_ext_13p2twh:
+  description: "FES 2025 Holistic Transition 2035 - Scotland-focused Torness extension sensitivity with 13.2 TWh explicit Scottish H2 demand as the revised higher-demand sensitivity in a GB-integrated zonal electricity-hydrogen model"
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver:
+    threads: 0
+    method: 1
+  solve_period:
+    enabled: false
+  future_capacity_candidates:
+    enabled: true
+  technical_potential_constraints:
+    enabled: true
+  hydrogen:
+    network:
+      mode: "full"
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 13.2
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear:
+    future_fixed:
+      exclude_scotland: true
+    existing_asset_overrides:
+      retain_sites: ["Torness"]
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: true
+        allowed_anchor_ids: []
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_torness_ext_6twh_smoke:
+  description: "24-hour QA/preflight parity run for the Scotland Torness extension sensitivity with 6.0 TWh explicit Scottish H2 demand in a GB-integrated zonal electricity-hydrogen model"
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver:
+    threads: 0
+    method: 1
+  solve_period:
+    enabled: true
+    start: "2035-01-01 00:00"
+    end: "2035-01-01 23:00"
+  future_capacity_candidates:
+    enabled: true
+  technical_potential_constraints:
+    enabled: true
+  hydrogen:
+    network:
+      mode: "full"
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 6.0
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear:
+    future_fixed:
+      exclude_scotland: true
+    existing_asset_overrides:
+      retain_sites: ["Torness"]
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: true
+        allowed_anchor_ids: []
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_torness_ext_12twh_smoke:
+  description: "24-hour QA/preflight parity run for the Scotland Torness extension sensitivity with 12.0 TWh explicit Scottish H2 demand in a GB-integrated zonal electricity-hydrogen model"
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver:
+    threads: 0
+    method: 1
+  solve_period:
+    enabled: true
+    start: "2035-01-01 00:00"
+    end: "2035-01-01 23:00"
+  future_capacity_candidates:
+    enabled: true
+  technical_potential_constraints:
+    enabled: true
+  hydrogen:
+    network:
+      mode: "full"
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 12.0
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear:
+    future_fixed:
+      exclude_scotland: true
+    existing_asset_overrides:
+      retain_sites: ["Torness"]
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: true
+        allowed_anchor_ids: []
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_torness_ext_13p2twh_smoke:
+  description: "24-hour QA/preflight parity run for the Scotland Torness extension sensitivity with 13.2 TWh explicit Scottish H2 demand in a GB-integrated zonal electricity-hydrogen model"
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver:
+    threads: 0
+    method: 1
+  solve_period:
+    enabled: true
+    start: "2035-01-01 00:00"
+    end: "2035-01-01 23:00"
+  future_capacity_candidates:
+    enabled: true
+  technical_potential_constraints:
+    enabled: true
+  hydrogen:
+    network:
+      mode: "full"
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 13.2
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear:
+    future_fixed:
+      exclude_scotland: true
+    existing_asset_overrides:
+      retain_sites: ["Torness"]
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: true
+        allowed_anchor_ids: []
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_smr_exp:
+  description: "FES 2025 Holistic Transition 2035 - Scotland-focused experimental SMR sensitivity with 12.0 TWh explicit Scottish H2 demand as the working central case rounded from the Table 4.1 hub-based reference scale in a GB-integrated zonal electricity-hydrogen model"
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver:
+    threads: 0
+    method: 1
+  solve_period:
+    enabled: false
+  future_capacity_candidates:
+    enabled: true
+  technical_potential_constraints:
+    enabled: true
+  hydrogen:
+    network:
+      mode: "full"
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 12.0
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear:
+    future_fixed:
+      exclude_scotland: true
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: false
+        allowed_anchor_ids: ["grangemouth_industrial", "aberdeen_port"]
+        preserve_non_scottish_baseline: true
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_smr_exp_6twh:
+  description: "FES 2025 Holistic Transition 2035 - Scotland-focused experimental SMR sensitivity with 6 TWh explicit Scottish H2 demand as a conservative lower-demand sensitivity in a GB-integrated zonal electricity-hydrogen model"
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver:
+    threads: 0
+    method: 1
+  solve_period:
+    enabled: false
+  future_capacity_candidates:
+    enabled: true
+  technical_potential_constraints:
+    enabled: true
+  hydrogen:
+    network:
+      mode: "full"
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 6.0
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear:
+    future_fixed:
+      exclude_scotland: true
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: false
+        allowed_anchor_ids: ["grangemouth_industrial", "aberdeen_port"]
+        preserve_non_scottish_baseline: true
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_smr_exp_13p2twh:
+  description: "FES 2025 Holistic Transition 2035 - Scotland-focused experimental SMR sensitivity with 13.2 TWh explicit Scottish H2 demand as the revised higher-demand sensitivity in a GB-integrated zonal electricity-hydrogen model"
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver:
+    threads: 0
+    method: 1
+  solve_period:
+    enabled: false
+  future_capacity_candidates:
+    enabled: true
+  technical_potential_constraints:
+    enabled: true
+  hydrogen:
+    network:
+      mode: "full"
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 13.2
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear:
+    future_fixed:
+      exclude_scotland: true
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: false
+        allowed_anchor_ids: ["grangemouth_industrial", "aberdeen_port"]
+        preserve_non_scottish_baseline: true
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_smr_exp_6twh_smoke:
+  description: "24-hour QA/preflight parity run for the Scotland experimental SMR sensitivity with 6.0 TWh explicit Scottish H2 demand in a GB-integrated zonal electricity-hydrogen model"
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver:
+    threads: 0
+    method: 1
+  solve_period:
+    enabled: true
+    start: "2035-01-01 00:00"
+    end: "2035-01-01 23:00"
+  future_capacity_candidates:
+    enabled: true
+  technical_potential_constraints:
+    enabled: true
+  hydrogen:
+    network:
+      mode: "full"
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 6.0
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear:
+    future_fixed:
+      exclude_scotland: true
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: false
+        allowed_anchor_ids: ["grangemouth_industrial", "aberdeen_port"]
+        preserve_non_scottish_baseline: true
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_smr_exp_12twh_smoke:
+  description: "24-hour QA/preflight parity run for the Scotland experimental SMR sensitivity with 12.0 TWh explicit Scottish H2 demand in a GB-integrated zonal electricity-hydrogen model"
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver:
+    threads: 0
+    method: 1
+  solve_period:
+    enabled: true
+    start: "2035-01-01 00:00"
+    end: "2035-01-01 23:00"
+  future_capacity_candidates:
+    enabled: true
+  technical_potential_constraints:
+    enabled: true
+  hydrogen:
+    network:
+      mode: "full"
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 12.0
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear:
+    future_fixed:
+      exclude_scotland: true
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: false
+        allowed_anchor_ids: ["grangemouth_industrial", "aberdeen_port"]
+        preserve_non_scottish_baseline: true
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_smr_exp_13p2twh_smoke:
+  description: "24-hour QA/preflight parity run for the Scotland experimental SMR sensitivity with 13.2 TWh explicit Scottish H2 demand in a GB-integrated zonal electricity-hydrogen model"
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver:
+    threads: 0
+    method: 1
+  solve_period:
+    enabled: true
+    start: "2035-01-01 00:00"
+    end: "2035-01-01 23:00"
+  future_capacity_candidates:
+    enabled: true
+  technical_potential_constraints:
+    enabled: true
+  hydrogen:
+    network:
+      mode: "full"
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 13.2
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear:
+    future_fixed:
+      exclude_scotland: true
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: false
+        allowed_anchor_ids: ["grangemouth_industrial", "aberdeen_port"]
+        preserve_non_scottish_baseline: true
+  nuclear_to_x:
+    enabled: true
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SCOTLAND H2 V2 STUDY MATRIX
+# 13 explicit Scottish H2 demand hubs, Table 4.1 spatial weights, and
+# runtime-controllable H2 backbone/storage sensitivities. Legacy 3-node
+# scenarios above are retained for reproducibility.
+# ══════════════════════════════════════════════════════════════════════════════
+
+HT35_zonal_h2_scotland_v2_base_low_anchor_6p5twh:
+  description: "Scotland H2 v2 base case: low 6.5 TWh_H2/year Grangemouth-anchor demand with 13-hub-capable topology and current GB salt-cavern storage."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: &scotland_v2_solver
+    threads: 0
+    method: 1
+  solve_period: &scotland_v2_full_period
+    enabled: false
+  future_capacity_candidates: &scotland_v2_future_capacity
+    enabled: true
+  technical_potential_constraints: &scotland_v2_technical_potential
+    enabled: true
+  hydrogen:
+    network: &scotland_v2_h2_network_core
+      mode: "full"
+      topology:
+        buses_path: "resources/case_studies/scotland_n2h_2035/inputs/h2_topology_v2/buses.csv"
+        links_path: "resources/case_studies/scotland_n2h_2035/inputs/h2_topology_v2/links.csv"
+        stores_path: "resources/case_studies/scotland_n2h_2035/inputs/h2_topology_v2/store.csv"
+      pipeline_friction: &scotland_v2_pipeline_default
+        capacity_multiplier: 1.0
+        scotland_gb_capacity_multiplier: 1.0
+        marginal_cost_per_mwh_per_km: 0.0
+        efficiency_loss_per_100km: 0.0
+        min_efficiency: 0.75
+      costs: &scotland_v2_h2_costs
+        electrolysis_capital_cost: 900.0
+        h2_turbine_capital_cost: 700.0
+        storage_capital_cost: 15.0
+        scottish_tank_storage_capital_cost: 120.0
+    explicit_demand: &scotland_v2_low_anchor_demand
+      enabled: true
+      annual_demand_twh: 6.5
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_low_anchor.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+      layers:
+        - name: "scotland"
+          annual_demand_twh: 6.5
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_low_anchor.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+        - name: "gb_competition"
+          enabled: false
+          annual_demand_twh: 0.0
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_gb_competition.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear: &scotland_v2_nuclear_base
+    future_fixed:
+      exclude_scotland: true
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: true
+        allowed_anchor_ids: []
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh:
+  description: "Scotland H2 v2 base case: central 13.5 TWh_H2/year Scottish industry/buildings demand distributed across 13 hubs using Table 4.1 weights."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: &scotland_v2_central_demand
+      enabled: true
+      annual_demand_twh: 13.5
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_13hub.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+      layers:
+        - name: "scotland"
+          annual_demand_twh: 13.5
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_13hub.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+        - name: "gb_competition"
+          enabled: false
+          annual_demand_twh: 0.0
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_gb_competition.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_daily365_gbcomp:
+  description: "Scotland H2 v2 daily-365 diagnostic: base case, central 13.5 TWh_H2/year Scottish 13-hub demand, and 7.636 TWh_H2/year non-Scottish GB competition demand from FES 2025 WS1 Industrial + Commercial hydrogen demand."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 21.136
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_13hub.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+      layers:
+        - name: "scotland"
+          annual_demand_twh: 13.5
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_13hub.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+        - name: "gb_competition"
+          enabled: true
+          annual_demand_twh: 7.636
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_gb_competition.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic:
+    enabled: true
+    snapshot_weight_hours: 24
+    temporal_caveat: "Annual diagnostic only; not suitable for intraday battery cycling, short-duration flexibility, or hourly curtailment claims."
+  gb_competition_demand:
+    source_workbook: "data/FES/Future Energy Scenarios 2025 Data Workbook V005_0.xlsx"
+    source_sheet: "WS1"
+    pathway: "Holistic Transition"
+    year: 2035
+    included_sectors: ["Industrial", "Commercial"]
+    excluded_sectors: ["Power Generation", "Transmission Losses"]
+    fes_selected_demand_twh: 21.136
+    scotland_subtracted_twh: 13.5
+    non_scottish_competition_twh: 7.636
+    allocation_note: "First-pass industrial-cluster/backbone weights, not a final regional FES demand allocation."
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_h2diag7d_baseline:
+  description: "Scotland H2 v2 7-day hourly structural diagnostic: base central Scottish demand with GB competition, current electrolysis and H2 network assumptions."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 60
+  solver: *scotland_v2_solver
+  solve_period: &scotland_v2_h2diag7d_period
+    enabled: true
+    start: "2035-01-01 00:00"
+    end: "2035-01-07 23:00"
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: &scotland_v2_h2diag7d_central_gbcomp_demand
+      enabled: true
+      annual_demand_twh: 21.136
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_13hub.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+      layers:
+        - name: "scotland"
+          annual_demand_twh: 13.5
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_13hub.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+        - name: "gb_competition"
+          enabled: true
+          annual_demand_twh: 7.636
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_gb_competition.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  h2diag7d: &scotland_v2_h2diag7d_metadata
+    enabled: true
+    diagnostic_case: "baseline"
+    temporal_caveat: "Seven-day winter hourly diagnostic only; use for structural bottleneck triage, not manuscript-level annual adequacy claims."
+  gb_competition_demand: &scotland_v2_h2diag7d_gbcomp_metadata
+    source_workbook: "data/FES/Future Energy Scenarios 2025 Data Workbook V005_0.xlsx"
+    source_sheet: "WS1"
+    pathway: "Holistic Transition"
+    year: 2035
+    included_sectors: ["Industrial", "Commercial"]
+    excluded_sectors: ["Power Generation", "Transmission Losses"]
+    fes_selected_demand_twh: 21.136
+    scotland_subtracted_twh: 13.5
+    non_scottish_competition_twh: 7.636
+    allocation_note: "Central first-pass industrial-cluster/backbone weights, not a final regional FES demand allocation."
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_h2diag7d_electrolysis_x2:
+  description: "Scotland H2 v2 7-day hourly structural diagnostic: electrolysis build envelope multiplied by 2 to bracket a plausible production threshold."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 60
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_h2diag7d_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network:
+      <<: *scotland_v2_h2_network_core
+      capacity_bounds:
+        electrolysis_multiplier: 2.0
+    explicit_demand: *scotland_v2_h2diag7d_central_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  h2diag7d:
+    <<: *scotland_v2_h2diag7d_metadata
+    diagnostic_case: "electrolysis_x2"
+  gb_competition_demand: *scotland_v2_h2diag7d_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_h2diag7d_electrolysis_x3:
+  description: "Scotland H2 v2 7-day hourly structural diagnostic: electrolysis build envelope multiplied by 3 to bracket the production threshold below the extreme x10 release case."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 60
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_h2diag7d_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network:
+      <<: *scotland_v2_h2_network_core
+      capacity_bounds:
+        electrolysis_multiplier: 3.0
+    explicit_demand: *scotland_v2_h2diag7d_central_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  h2diag7d:
+    <<: *scotland_v2_h2diag7d_metadata
+    diagnostic_case: "electrolysis_x3"
+  gb_competition_demand: *scotland_v2_h2diag7d_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_h2diag7d_electrolysis_x10:
+  description: "Scotland H2 v2 7-day hourly structural diagnostic: electrolysis build envelope multiplied by 10 to test production/siting limits."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 60
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_h2diag7d_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network:
+      <<: *scotland_v2_h2_network_core
+      capacity_bounds:
+        electrolysis_multiplier: 10.0
+    explicit_demand: *scotland_v2_h2diag7d_central_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  h2diag7d:
+    <<: *scotland_v2_h2diag7d_metadata
+    diagnostic_case: "electrolysis_x10"
+  gb_competition_demand: *scotland_v2_h2diag7d_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_h2diag7d_pipeline_x10:
+  description: "Scotland H2 v2 7-day hourly structural diagnostic: all major H2 pipeline capacity groups multiplied by 10 to test whole-network delivery limits."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 60
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_h2diag7d_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network:
+      <<: *scotland_v2_h2_network_core
+      pipeline_friction:
+        <<: *scotland_v2_pipeline_default
+        capacity_multiplier: 10.0
+        scotland_gb_capacity_multiplier: 10.0
+        capacity_group_multipliers:
+          gb_backbone: 10.0
+          scotland_gb: 10.0
+          scotland_internal: 10.0
+          scotland_spur: 10.0
+    explicit_demand: *scotland_v2_h2diag7d_central_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  h2diag7d:
+    <<: *scotland_v2_h2diag7d_metadata
+    diagnostic_case: "pipeline_x10"
+  gb_competition_demand: *scotland_v2_h2diag7d_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_h2diag7d_no_gbcomp:
+  description: "Scotland H2 v2 7-day hourly structural diagnostic: GB competition demand disabled to test whether non-Scottish H2 demand crowds out Scotland."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 60
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_h2diag7d_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: &scotland_v2_h2diag7d_scotland_only_demand
+      enabled: true
+      annual_demand_twh: 13.5
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_13hub.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+      layers:
+        - name: "scotland"
+          annual_demand_twh: 13.5
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_13hub.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+        - name: "gb_competition"
+          enabled: false
+          annual_demand_twh: 0.0
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_gb_competition.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  h2diag7d:
+    <<: *scotland_v2_h2diag7d_metadata
+    diagnostic_case: "no_gbcomp"
+  gb_competition_demand:
+    <<: *scotland_v2_h2diag7d_gbcomp_metadata
+    non_scottish_competition_twh: 0.0
+    allocation_note: "GB competition layer disabled for bottleneck triage."
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_h2diag7d_scotland_network_x10:
+  description: "Scotland H2 v2 7-day hourly structural diagnostic: Scotland-GB, Scottish internal, and Scottish spur H2 capacities multiplied by 10 while wider GB backbone stays unchanged."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 60
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_h2diag7d_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network:
+      <<: *scotland_v2_h2_network_core
+      pipeline_friction:
+        <<: *scotland_v2_pipeline_default
+        scotland_gb_capacity_multiplier: 10.0
+        capacity_group_multipliers:
+          scotland_gb: 10.0
+          scotland_internal: 10.0
+          scotland_spur: 10.0
+    explicit_demand: *scotland_v2_h2diag7d_central_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  h2diag7d:
+    <<: *scotland_v2_h2diag7d_metadata
+    diagnostic_case: "scotland_network_x10"
+  gb_competition_demand: *scotland_v2_h2diag7d_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_h2diag7d_electrolysis_x2_scotland_network_x10:
+  description: "Scotland H2 v2 7-day hourly structural diagnostic: electrolysis build envelope multiplied by 2 and Scottish H2 access groups multiplied by 10 to find the bounded joint production/access threshold."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 60
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_h2diag7d_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network:
+      <<: *scotland_v2_h2_network_core
+      capacity_bounds:
+        electrolysis_multiplier: 2.0
+      pipeline_friction:
+        <<: *scotland_v2_pipeline_default
+        scotland_gb_capacity_multiplier: 10.0
+        capacity_group_multipliers:
+          scotland_gb: 10.0
+          scotland_internal: 10.0
+          scotland_spur: 10.0
+    explicit_demand: *scotland_v2_h2diag7d_central_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  h2diag7d:
+    <<: *scotland_v2_h2diag7d_metadata
+    diagnostic_case: "electrolysis_x2_scotland_network_x10"
+  gb_competition_demand: *scotland_v2_h2diag7d_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_h2diag7d_electrolysis_x3_scotland_network_x10:
+  description: "Scotland H2 v2 7-day hourly structural diagnostic: electrolysis build envelope multiplied by 3 and Scottish H2 access groups multiplied by 10 to find the bounded joint production/access threshold."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 60
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_h2diag7d_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network:
+      <<: *scotland_v2_h2_network_core
+      capacity_bounds:
+        electrolysis_multiplier: 3.0
+      pipeline_friction:
+        <<: *scotland_v2_pipeline_default
+        scotland_gb_capacity_multiplier: 10.0
+        capacity_group_multipliers:
+          scotland_gb: 10.0
+          scotland_internal: 10.0
+          scotland_spur: 10.0
+    explicit_demand: *scotland_v2_h2diag7d_central_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  h2diag7d:
+    <<: *scotland_v2_h2diag7d_metadata
+    diagnostic_case: "electrolysis_x3_scotland_network_x10"
+  gb_competition_demand: *scotland_v2_h2diag7d_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_h2diag7d_electrolysis_x5_scotland_network_x10:
+  description: "Scotland H2 v2 7-day hourly structural diagnostic: electrolysis build envelope multiplied by 5 and Scottish H2 access groups multiplied by 10 to find the bounded joint production/access threshold."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 60
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_h2diag7d_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network:
+      <<: *scotland_v2_h2_network_core
+      capacity_bounds:
+        electrolysis_multiplier: 5.0
+      pipeline_friction:
+        <<: *scotland_v2_pipeline_default
+        scotland_gb_capacity_multiplier: 10.0
+        capacity_group_multipliers:
+          scotland_gb: 10.0
+          scotland_internal: 10.0
+          scotland_spur: 10.0
+    explicit_demand: *scotland_v2_h2diag7d_central_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  h2diag7d:
+    <<: *scotland_v2_h2diag7d_metadata
+    diagnostic_case: "electrolysis_x5_scotland_network_x10"
+  gb_competition_demand: *scotland_v2_h2diag7d_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_h2diag7d_electrolysis_x10_scotland_network_x10:
+  description: "Scotland H2 v2 7-day hourly structural diagnostic: electrolysis build envelope multiplied by 10 and Scottish H2 access groups multiplied by 10 to test whether remaining Scottish shortfall is local network constrained."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 60
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_h2diag7d_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network:
+      <<: *scotland_v2_h2_network_core
+      capacity_bounds:
+        electrolysis_multiplier: 10.0
+      pipeline_friction:
+        <<: *scotland_v2_pipeline_default
+        scotland_gb_capacity_multiplier: 10.0
+        capacity_group_multipliers:
+          scotland_gb: 10.0
+          scotland_internal: 10.0
+          scotland_spur: 10.0
+    explicit_demand: *scotland_v2_h2diag7d_central_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  h2diag7d:
+    <<: *scotland_v2_h2diag7d_metadata
+    diagnostic_case: "electrolysis_x10_scotland_network_x10"
+  gb_competition_demand: *scotland_v2_h2diag7d_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_h2diag7d_low_demand:
+  description: "Scotland H2 v2 7-day hourly structural diagnostic: low 6.5 TWh_H2/year Scottish anchor demand with GB competition retained."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 60
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_h2diag7d_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: &scotland_v2_h2diag7d_low_gbcomp_demand
+      enabled: true
+      annual_demand_twh: 14.136
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_low_anchor.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+      layers:
+        - name: "scotland"
+          annual_demand_twh: 6.5
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_low_anchor.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+        - name: "gb_competition"
+          enabled: true
+          annual_demand_twh: 7.636
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_gb_competition.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  h2diag7d:
+    <<: *scotland_v2_h2diag7d_metadata
+    diagnostic_case: "low_demand"
+  gb_competition_demand:
+    <<: *scotland_v2_h2diag7d_gbcomp_metadata
+    scotland_subtracted_twh: 6.5
+    non_scottish_competition_twh: 7.636
+    allocation_note: "GB competition retained while Scottish layer is reduced to the low-anchor diagnostic demand."
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_h2diag7d_scottish_tank_storage:
+  description: "Scotland H2 v2 7-day hourly structural diagnostic: current production/network assumptions plus Scottish compressed H2 tank storage candidates."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 60
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_h2diag7d_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network:
+      <<: *scotland_v2_h2_network_core
+      topology:
+        buses_path: "resources/case_studies/scotland_n2h_2035/inputs/h2_topology_v2/buses.csv"
+        links_path: "resources/case_studies/scotland_n2h_2035/inputs/h2_topology_v2/links.csv"
+        stores_path: "resources/case_studies/scotland_n2h_2035/inputs/h2_topology_v2/store_with_scottish_tanks.csv"
+    explicit_demand: *scotland_v2_h2diag7d_central_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  h2diag7d:
+    <<: *scotland_v2_h2diag7d_metadata
+    diagnostic_case: "scottish_tank_storage"
+  gb_competition_demand: *scotland_v2_h2diag7d_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_base_high_26twh:
+  description: "Scotland H2 v2 base case: high 26 TWh_H2/year industry-plus-transport stress case distributed across 13 hubs using Table 4.1 weights."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: &scotland_v2_high_demand
+      enabled: true
+      annual_demand_twh: 26.0
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_13hub.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+      layers:
+        - name: "scotland"
+          annual_demand_twh: 26.0
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_13hub.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+        - name: "gb_competition"
+          enabled: false
+          annual_demand_twh: 0.0
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_gb_competition.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_v2_base_low_anchor_6p5twh_smoke:
+  description: "24-hour QA/preflight for Scotland H2 v2 base low 6.5 TWh_H2/year Grangemouth-anchor case."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *scotland_v2_solver
+  solve_period: &scotland_v2_smoke_period
+    enabled: true
+    start: "2035-01-01 00:00"
+    end: "2035-01-01 23:00"
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: *scotland_v2_low_anchor_demand
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_smoke:
+  description: "24-hour QA/preflight for Scotland H2 v2 base central 13.5 TWh_H2/year 13-hub case."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_smoke_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: *scotland_v2_central_demand
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_v2_base_high_26twh_smoke:
+  description: "24-hour QA/preflight for Scotland H2 v2 base high 26 TWh_H2/year 13-hub stress case."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_smoke_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: *scotland_v2_high_demand
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_v2_torness_ext_low_anchor_6p5twh:
+  description: "Scotland H2 v2 Torness-retention case: low 6.5 TWh_H2/year Grangemouth-anchor demand."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: *scotland_v2_low_anchor_demand
+  nuclear: &scotland_v2_nuclear_torness
+    future_fixed:
+      exclude_scotland: true
+    existing_asset_overrides:
+      retain_sites: ["Torness"]
+      retained_asset_variable_penalty_gbp_per_mwh: 10.0
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: true
+        allowed_anchor_ids: []
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_v2_torness_ext_central_13p5twh:
+  description: "Scotland H2 v2 Torness-retention case: central 13.5 TWh_H2/year 13-hub demand."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: *scotland_v2_central_demand
+  nuclear: *scotland_v2_nuclear_torness
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_v2_torness_ext_central_13p5twh_daily365_gbcomp:
+  description: "Scotland H2 v2 daily-365 diagnostic: Torness retention, central 13.5 TWh_H2/year Scottish 13-hub demand, and 7.636 TWh_H2/year non-Scottish GB competition demand from FES 2025 WS1 Industrial + Commercial hydrogen demand."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 21.136
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_13hub.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+      layers:
+        - name: "scotland"
+          annual_demand_twh: 13.5
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_13hub.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+        - name: "gb_competition"
+          enabled: true
+          annual_demand_twh: 7.636
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_gb_competition.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear: *scotland_v2_nuclear_torness
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic:
+    enabled: true
+    snapshot_weight_hours: 24
+    temporal_caveat: "Annual diagnostic only; not suitable for intraday battery cycling, short-duration flexibility, or hourly curtailment claims."
+  gb_competition_demand:
+    source_workbook: "data/FES/Future Energy Scenarios 2025 Data Workbook V005_0.xlsx"
+    source_sheet: "WS1"
+    pathway: "Holistic Transition"
+    year: 2035
+    included_sectors: ["Industrial", "Commercial"]
+    excluded_sectors: ["Power Generation", "Transmission Losses"]
+    fes_selected_demand_twh: 21.136
+    scotland_subtracted_twh: 13.5
+    non_scottish_competition_twh: 7.636
+    allocation_note: "First-pass industrial-cluster/backbone weights, not a final regional FES demand allocation."
+
+HT35_zonal_h2_scotland_v2_torness_ext_high_26twh:
+  description: "Scotland H2 v2 Torness-retention case: high 26 TWh_H2/year 13-hub stress demand."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: *scotland_v2_high_demand
+  nuclear: *scotland_v2_nuclear_torness
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_v2_torness_ext_low_anchor_6p5twh_smoke:
+  description: "24-hour QA/preflight for Scotland H2 v2 Torness-retention low 6.5 TWh_H2/year case."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_smoke_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: *scotland_v2_low_anchor_demand
+  nuclear: *scotland_v2_nuclear_torness
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_v2_torness_ext_central_13p5twh_smoke:
+  description: "24-hour QA/preflight for Scotland H2 v2 Torness-retention central 13.5 TWh_H2/year 13-hub case."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_smoke_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: *scotland_v2_central_demand
+  nuclear: *scotland_v2_nuclear_torness
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_v2_torness_ext_high_26twh_smoke:
+  description: "24-hour QA/preflight for Scotland H2 v2 Torness-retention high 26 TWh_H2/year 13-hub stress case."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_smoke_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: *scotland_v2_high_demand
+  nuclear: *scotland_v2_nuclear_torness
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_v2_smr_exp_low_anchor_6p5twh:
+  description: "Scotland H2 v2 experimental SMR case: low 6.5 TWh_H2/year Grangemouth-anchor demand."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: *scotland_v2_low_anchor_demand
+  nuclear: &scotland_v2_nuclear_smr
+    future_fixed:
+      exclude_scotland: true
+    siting_constraints:
+      large_nuclear:
+        scotland_ban: true
+      smr:
+        scotland_ban: false
+        allowed_anchor_ids: ["grangemouth_industrial", "aberdeen_port"]
+        preserve_non_scottish_baseline: true
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_v2_smr_exp_central_13p5twh:
+  description: "Scotland H2 v2 experimental SMR case: central 13.5 TWh_H2/year 13-hub demand."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: *scotland_v2_central_demand
+  nuclear: *scotland_v2_nuclear_smr
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_v2_smr_exp_central_13p5twh_daily365_gbcomp:
+  description: "Scotland H2 v2 daily-365 diagnostic: experimental SMR case, central 13.5 TWh_H2/year Scottish 13-hub demand, and 7.636 TWh_H2/year non-Scottish GB competition demand from FES 2025 WS1 Industrial + Commercial hydrogen demand."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand:
+      enabled: true
+      annual_demand_twh: 21.136
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_13hub.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+      layers:
+        - name: "scotland"
+          annual_demand_twh: 13.5
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_13hub.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+        - name: "gb_competition"
+          enabled: true
+          annual_demand_twh: 7.636
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_gb_competition.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear: *scotland_v2_nuclear_smr
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic:
+    enabled: true
+    snapshot_weight_hours: 24
+    temporal_caveat: "Annual diagnostic only; not suitable for intraday battery cycling, short-duration flexibility, or hourly curtailment claims."
+  gb_competition_demand:
+    source_workbook: "data/FES/Future Energy Scenarios 2025 Data Workbook V005_0.xlsx"
+    source_sheet: "WS1"
+    pathway: "Holistic Transition"
+    year: 2035
+    included_sectors: ["Industrial", "Commercial"]
+    excluded_sectors: ["Power Generation", "Transmission Losses"]
+    fes_selected_demand_twh: 21.136
+    scotland_subtracted_twh: 13.5
+    non_scottish_competition_twh: 7.636
+    allocation_note: "First-pass industrial-cluster/backbone weights, not a final regional FES demand allocation."
+
+HT35_zonal_h2_scotland_v2_smr_exp_high_26twh:
+  description: "Scotland H2 v2 experimental SMR case: high 26 TWh_H2/year 13-hub stress demand."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: *scotland_v2_high_demand
+  nuclear: *scotland_v2_nuclear_smr
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_v2_smr_exp_low_anchor_6p5twh_smoke:
+  description: "24-hour QA/preflight for Scotland H2 v2 experimental SMR low 6.5 TWh_H2/year case."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_smoke_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: *scotland_v2_low_anchor_demand
+  nuclear: *scotland_v2_nuclear_smr
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_v2_smr_exp_central_13p5twh_smoke:
+  description: "24-hour QA/preflight for Scotland H2 v2 experimental SMR central 13.5 TWh_H2/year 13-hub case."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_smoke_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: *scotland_v2_central_demand
+  nuclear: *scotland_v2_nuclear_smr
+  nuclear_to_x:
+    enabled: true
+
+HT35_zonal_h2_scotland_v2_smr_exp_high_26twh_smoke:
+  description: "24-hour QA/preflight for Scotland H2 v2 experimental SMR high 26 TWh_H2/year 13-hub stress case."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_smoke_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: *scotland_v2_high_demand
+  nuclear: *scotland_v2_nuclear_smr
+  nuclear_to_x:
+    enabled: true
 
 HT35_clustered_gsp:
-  description: "FES 2024 Holistic Transition 2035 - ETYS → GSP Clusters"
+  description: "FES 2025 Holistic Transition 2035 - ETYS → GSP Clusters"
   modelled_year: 2035
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   renewables_year: 2020
   demand_year: 2020
@@ -454,9 +2276,9 @@ HT35_clustered_gsp:
     end: "2035-01-07 23:00"
 
 HT35_clustered:
-  description: "FES 2024 Holistic Transition 2035 - ETYS clustered to GSP regions"
+  description: "FES 2025 Holistic Transition 2035 - ETYS clustered to GSP regions"
   modelled_year: 2035
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   renewables_year: 2019
   demand_year: 2020
@@ -470,9 +2292,9 @@ HT35_clustered:
     end: "2035-01-21 23:00"
 
 HT50_clustered_gsp:
-  description: "FES 2024 Holistic Transition 2050 - ETYS to GSP Clusters (1 month)"
+  description: "FES 2025 Holistic Transition 2050 - ETYS to GSP Clusters (1 month)"
   modelled_year: 2050
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   renewables_year: 2022
   demand_year: 2022
@@ -502,9 +2324,9 @@ EE50_clustered:
     end: "2050-02-07 23:00"
 
 HT35_clustered_kmeans:
-  description: "FES 2024 Holistic Transition 2035 - K-means 10 Clusters"
+  description: "FES 2025 Holistic Transition 2035 - K-means 10 Clusters"
   modelled_year: 2035
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   renewables_year: 2020
   demand_year: 2020
@@ -512,9 +2334,9 @@ HT35_clustered_kmeans:
   clustering: kmeans_10
 
 HT35_with_disaggregation:
-  description: "FES 2024 Holistic Transition 2035 - With Demand Disaggregation"
+  description: "FES 2025 Holistic Transition 2035 - With Demand Disaggregation"
   modelled_year: 2035
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   renewables_year: 2020
   demand_year: 2020              # Year for ESPENI temporal profile shape
@@ -538,7 +2360,7 @@ Test_Historical_2015:
 Test_Future_2030:
   description: "Minimal future test (2030)"
   modelled_year: 2030
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Leading the Way"
   renewables_year: 2020
   demand_year: 2020
@@ -574,7 +2396,7 @@ Test_Future_HT_2035_Reduced:
   renewables_year: 2019
   demand_year: 2019
   network_model: "Reduced"
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   solve_period:
     enabled: true
@@ -587,7 +2409,7 @@ Test_Future_HT_2035_Zonal:
   renewables_year: 2019
   demand_year: 2019
   network_model: "Zonal"
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   solve_period:
     enabled: true
@@ -600,7 +2422,7 @@ Test_Future_HT_2035_ETYS:
   renewables_year: 2019
   demand_year: 2019
   network_model: "ETYS"
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   solve_period:
     enabled: true
@@ -613,7 +2435,7 @@ Test_Future_HE_2035_Reduced:
   renewables_year: 2019
   demand_year: 2019
   network_model: "Reduced"
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Hydrogen Evolution"
   solve_period:
     enabled: true
@@ -627,7 +2449,7 @@ Test_HT_2035_1Week:
   renewables_year: 2019
   demand_year: 2019
   network_model: "Reduced"
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   solve_period:
     enabled: true
@@ -641,7 +2463,7 @@ Test_Weather_2010:
   renewables_year: 2010
   demand_year: 2010
   network_model: "Reduced"
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   solve_period:
     enabled: true
@@ -654,7 +2476,7 @@ Test_Weather_2015:
   renewables_year: 2015
   demand_year: 2015
   network_model: "Reduced"
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   solve_period:
     enabled: true
@@ -667,7 +2489,7 @@ Test_Weather_2020:
   renewables_year: 2020
   demand_year: 2020
   network_model: "Reduced"
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   solve_period:
     enabled: true
@@ -720,7 +2542,7 @@ Test_NoAgg_Historical:
 Test_Agg_Future:
   description: "HT 2035 Reduced - WITH renewable + component aggregation (test)"
   modelled_year: 2035
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   renewables_year: 2020
   demand_year: 2020
@@ -740,7 +2562,7 @@ Test_Agg_Future:
 Test_NoAgg_Future:
   description: "HT 2035 Reduced - WITHOUT aggregation (baseline)"
   modelled_year: 2035
-  FES_year: 2024
+  FES_year: 2025
   FES_scenario: "Holistic Transition"
   renewables_year: 2020
   demand_year: 2020
@@ -753,6 +2575,771 @@ Test_NoAgg_Future:
     enabled: true
     start: "2035-01-01 00:00"
     end: "2035-01-01 05:00"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SCOTLAND H2 V2 RQ3 DAILY-365 SENSITIVITY SCENARIOS
+# ══════════════════════════════════════════════════════════════════════════════
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_daily365_gbcomp_storage_scotland_tank:
+  description: "Scotland H2 v2 RQ3 daily-365 diagnostic: base case with central Scottish and GB-competition H2 demand plus Scottish compressed H2 tank storage."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: &scotland_v2_h2_network_scottish_tank
+      <<: *scotland_v2_h2_network_core
+      topology:
+        buses_path: "resources/case_studies/scotland_n2h_2035/inputs/h2_topology_v2/buses.csv"
+        links_path: "resources/case_studies/scotland_n2h_2035/inputs/h2_topology_v2/links.csv"
+        stores_path: "resources/case_studies/scotland_n2h_2035/inputs/h2_topology_v2/store_with_scottish_tanks.csv"
+    explicit_demand: &scotland_v2_daily365_gbcomp_demand
+      enabled: true
+      annual_demand_twh: 21.136
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_13hub.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+      layers:
+        - name: "scotland"
+          annual_demand_twh: 13.5
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_13hub.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+        - name: "gb_competition"
+          enabled: true
+          annual_demand_twh: 7.636
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_gb_competition.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic: &scotland_v2_daily365_diagnostic
+    enabled: true
+    snapshot_weight_hours: 24
+    temporal_caveat: "Annual diagnostic only; not suitable for intraday battery cycling, short-duration flexibility, or hourly curtailment claims."
+  gb_competition_demand: &scotland_v2_gbcomp_metadata
+    source_workbook: "data/FES/Future Energy Scenarios 2025 Data Workbook V005_0.xlsx"
+    source_sheet: "WS1"
+    pathway: "Holistic Transition"
+    year: 2035
+    included_sectors: ["Industrial", "Commercial"]
+    excluded_sectors: ["Power Generation", "Transmission Losses"]
+    fes_selected_demand_twh: 21.136
+    scotland_subtracted_twh: 13.5
+    non_scottish_competition_twh: 7.636
+    allocation_note: "Central first-pass industrial-cluster/backbone weights, not a final regional FES demand allocation."
+
+HT35_zonal_h2_scotland_v2_torness_ext_central_13p5twh_daily365_gbcomp_storage_scotland_tank:
+  description: "Scotland H2 v2 RQ3 daily-365 diagnostic: Torness retention with central Scottish and GB-competition H2 demand plus Scottish compressed H2 tank storage."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_scottish_tank
+    explicit_demand: *scotland_v2_daily365_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_torness
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic: *scotland_v2_daily365_diagnostic
+  gb_competition_demand: *scotland_v2_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_smr_exp_central_13p5twh_daily365_gbcomp_storage_scotland_tank:
+  description: "Scotland H2 v2 RQ3 daily-365 diagnostic: experimental SMR case with central Scottish and GB-competition H2 demand plus Scottish compressed H2 tank storage."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_scottish_tank
+    explicit_demand: *scotland_v2_daily365_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_smr
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic: *scotland_v2_daily365_diagnostic
+  gb_competition_demand: *scotland_v2_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_daily365_gbcomp_backbone_reduced:
+  description: "Scotland H2 v2 RQ3 daily-365 diagnostic: base case with Scotland-GB H2 backbone capacity reduced to 50%."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: &scotland_v2_h2_network_backbone_reduced
+      <<: *scotland_v2_h2_network_core
+      pipeline_friction:
+        <<: *scotland_v2_pipeline_default
+        scotland_gb_capacity_multiplier: 0.5
+    explicit_demand: *scotland_v2_daily365_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic: *scotland_v2_daily365_diagnostic
+  gb_competition_demand: *scotland_v2_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_torness_ext_central_13p5twh_daily365_gbcomp_backbone_reduced:
+  description: "Scotland H2 v2 RQ3 daily-365 diagnostic: Torness retention with Scotland-GB H2 backbone capacity reduced to 50%."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_backbone_reduced
+    explicit_demand: *scotland_v2_daily365_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_torness
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic: *scotland_v2_daily365_diagnostic
+  gb_competition_demand: *scotland_v2_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_smr_exp_central_13p5twh_daily365_gbcomp_backbone_reduced:
+  description: "Scotland H2 v2 RQ3 daily-365 diagnostic: experimental SMR case with Scotland-GB H2 backbone capacity reduced to 50%."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_backbone_reduced
+    explicit_demand: *scotland_v2_daily365_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_smr
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic: *scotland_v2_daily365_diagnostic
+  gb_competition_demand: *scotland_v2_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_daily365_gbcomp_pipeline_friction_high:
+  description: "Scotland H2 v2 RQ3 daily-365 diagnostic: base case with high distance-based H2 pipeline cost and loss assumptions."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: &scotland_v2_h2_network_pipeline_friction_high
+      <<: *scotland_v2_h2_network_core
+      pipeline_friction:
+        <<: *scotland_v2_pipeline_default
+        marginal_cost_per_mwh_per_km: 0.02
+        efficiency_loss_per_100km: 0.005
+        min_efficiency: 0.75
+    explicit_demand: *scotland_v2_daily365_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic: *scotland_v2_daily365_diagnostic
+  gb_competition_demand: *scotland_v2_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_torness_ext_central_13p5twh_daily365_gbcomp_pipeline_friction_high:
+  description: "Scotland H2 v2 RQ3 daily-365 diagnostic: Torness retention with high distance-based H2 pipeline cost and loss assumptions."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_pipeline_friction_high
+    explicit_demand: *scotland_v2_daily365_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_torness
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic: *scotland_v2_daily365_diagnostic
+  gb_competition_demand: *scotland_v2_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_smr_exp_central_13p5twh_daily365_gbcomp_pipeline_friction_high:
+  description: "Scotland H2 v2 RQ3 daily-365 diagnostic: experimental SMR case with high distance-based H2 pipeline cost and loss assumptions."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_pipeline_friction_high
+    explicit_demand: *scotland_v2_daily365_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_smr
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic: *scotland_v2_daily365_diagnostic
+  gb_competition_demand: *scotland_v2_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_daily365_gbcomp_storage_tank_backbone_reduced:
+  description: "Scotland H2 v2 RQ3 daily-365 diagnostic: base case with Scottish compressed H2 tank storage and 50% Scotland-GB H2 backbone capacity."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: &scotland_v2_h2_network_tank_backbone_reduced
+      <<: *scotland_v2_h2_network_core
+      topology:
+        buses_path: "resources/case_studies/scotland_n2h_2035/inputs/h2_topology_v2/buses.csv"
+        links_path: "resources/case_studies/scotland_n2h_2035/inputs/h2_topology_v2/links.csv"
+        stores_path: "resources/case_studies/scotland_n2h_2035/inputs/h2_topology_v2/store_with_scottish_tanks.csv"
+      pipeline_friction:
+        <<: *scotland_v2_pipeline_default
+        scotland_gb_capacity_multiplier: 0.5
+    explicit_demand: *scotland_v2_daily365_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic: *scotland_v2_daily365_diagnostic
+  gb_competition_demand: *scotland_v2_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_torness_ext_central_13p5twh_daily365_gbcomp_storage_tank_backbone_reduced:
+  description: "Scotland H2 v2 RQ3 daily-365 diagnostic: Torness retention with Scottish compressed H2 tank storage and 50% Scotland-GB H2 backbone capacity."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_tank_backbone_reduced
+    explicit_demand: *scotland_v2_daily365_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_torness
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic: *scotland_v2_daily365_diagnostic
+  gb_competition_demand: *scotland_v2_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_smr_exp_central_13p5twh_daily365_gbcomp_storage_tank_backbone_reduced:
+  description: "Scotland H2 v2 RQ3 daily-365 diagnostic: experimental SMR case with Scottish compressed H2 tank storage and 50% Scotland-GB H2 backbone capacity."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_tank_backbone_reduced
+    explicit_demand: *scotland_v2_daily365_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_smr
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic: *scotland_v2_daily365_diagnostic
+  gb_competition_demand: *scotland_v2_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_daily365_gbcomp_north_industrial:
+  description: "Scotland H2 v2 RQ3 daily-365 diagnostic: base case with north/industrial-heavy non-Scottish GB H2 competition allocation."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: &scotland_v2_daily365_gbcomp_north_demand
+      enabled: true
+      annual_demand_twh: 21.136
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_13hub.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+      layers:
+        - name: "scotland"
+          annual_demand_twh: 13.5
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_13hub.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+        - name: "gb_competition"
+          enabled: true
+          annual_demand_twh: 7.636
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_gb_competition_north_industrial.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic: *scotland_v2_daily365_diagnostic
+  gb_competition_demand:
+    <<: *scotland_v2_gbcomp_metadata
+    allocation_note: "North/industrial-heavy transparent allocation sensitivity; not a final regional FES demand allocation."
+
+HT35_zonal_h2_scotland_v2_torness_ext_central_13p5twh_daily365_gbcomp_north_industrial:
+  description: "Scotland H2 v2 RQ3 daily-365 diagnostic: Torness retention with north/industrial-heavy non-Scottish GB H2 competition allocation."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: *scotland_v2_daily365_gbcomp_north_demand
+  nuclear: *scotland_v2_nuclear_torness
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic: *scotland_v2_daily365_diagnostic
+  gb_competition_demand:
+    <<: *scotland_v2_gbcomp_metadata
+    allocation_note: "North/industrial-heavy transparent allocation sensitivity; not a final regional FES demand allocation."
+
+HT35_zonal_h2_scotland_v2_smr_exp_central_13p5twh_daily365_gbcomp_north_industrial:
+  description: "Scotland H2 v2 RQ3 daily-365 diagnostic: experimental SMR case with north/industrial-heavy non-Scottish GB H2 competition allocation."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: *scotland_v2_daily365_gbcomp_north_demand
+  nuclear: *scotland_v2_nuclear_smr
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic: *scotland_v2_daily365_diagnostic
+  gb_competition_demand:
+    <<: *scotland_v2_gbcomp_metadata
+    allocation_note: "North/industrial-heavy transparent allocation sensitivity; not a final regional FES demand allocation."
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_daily365_gbcomp_south_storage:
+  description: "Scotland H2 v2 RQ3 daily-365 diagnostic: base case with southern/storage-access non-Scottish GB H2 competition allocation."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: &scotland_v2_daily365_gbcomp_south_demand
+      enabled: true
+      annual_demand_twh: 21.136
+      profile: "flat"
+      nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_13hub.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+      layers:
+        - name: "scotland"
+          annual_demand_twh: 13.5
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_13hub.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+        - name: "gb_competition"
+          enabled: true
+          annual_demand_twh: 7.636
+          profile: "flat"
+          nodes_path: "resources/case_studies/scotland_n2h_2035/inputs/explicit_h2_demand_nodes_v2_gb_competition_south_storage.csv"
+          unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic: *scotland_v2_daily365_diagnostic
+  gb_competition_demand:
+    <<: *scotland_v2_gbcomp_metadata
+    allocation_note: "Southern/storage-access transparent allocation sensitivity; not a final regional FES demand allocation."
+
+HT35_zonal_h2_scotland_v2_torness_ext_central_13p5twh_daily365_gbcomp_south_storage:
+  description: "Scotland H2 v2 RQ3 daily-365 diagnostic: Torness retention with southern/storage-access non-Scottish GB H2 competition allocation."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: *scotland_v2_daily365_gbcomp_south_demand
+  nuclear: *scotland_v2_nuclear_torness
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic: *scotland_v2_daily365_diagnostic
+  gb_competition_demand:
+    <<: *scotland_v2_gbcomp_metadata
+    allocation_note: "Southern/storage-access transparent allocation sensitivity; not a final regional FES demand allocation."
+
+HT35_zonal_h2_scotland_v2_smr_exp_central_13p5twh_daily365_gbcomp_south_storage:
+  description: "Scotland H2 v2 RQ3 daily-365 diagnostic: experimental SMR case with southern/storage-access non-Scottish GB H2 competition allocation."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_core
+    explicit_demand: *scotland_v2_daily365_gbcomp_south_demand
+  nuclear: *scotland_v2_nuclear_smr
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic: *scotland_v2_daily365_diagnostic
+  gb_competition_demand:
+    <<: *scotland_v2_gbcomp_metadata
+    allocation_note: "Southern/storage-access transparent allocation sensitivity; not a final regional FES demand allocation."
+
+HT35_zonal_h2_scotland_v2_base_central_13p5twh_daily365_gbcomp_electrolysis_x2_scotland_network_x10:
+  description: "Scotland H2 v2 daily-365 structural-fix comparator: base case with central Scottish and GB-competition H2 demand, electrolysis envelope x2, and Scottish H2 access groups x10."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: &scotland_v2_h2_network_electrolysis_x2_scotland_network_x10
+      <<: *scotland_v2_h2_network_core
+      capacity_bounds:
+        electrolysis_multiplier: 2.0
+      pipeline_friction:
+        <<: *scotland_v2_pipeline_default
+        scotland_gb_capacity_multiplier: 10.0
+        capacity_group_multipliers:
+          scotland_gb: 10.0
+          scotland_internal: 10.0
+          scotland_spur: 10.0
+    explicit_demand: *scotland_v2_daily365_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_base
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic:
+    <<: *scotland_v2_daily365_diagnostic
+    structural_fix_envelope: "electrolysis_x2_scotland_network_x10"
+    interpretation_note: "Promoted from seven-day diagnostics as the smallest tested joint production/access release that fully served Scotland and GB competition."
+  gb_competition_demand: *scotland_v2_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_torness_ext_central_13p5twh_daily365_gbcomp_electrolysis_x2_scotland_network_x10:
+  description: "Scotland H2 v2 daily-365 structural-fix comparator: Torness retention with central Scottish and GB-competition H2 demand, electrolysis envelope x2, and Scottish H2 access groups x10."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_electrolysis_x2_scotland_network_x10
+    explicit_demand: *scotland_v2_daily365_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_torness
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic:
+    <<: *scotland_v2_daily365_diagnostic
+    structural_fix_envelope: "electrolysis_x2_scotland_network_x10"
+    interpretation_note: "Promoted from seven-day diagnostics as the smallest tested joint production/access release that fully served Scotland and GB competition."
+  gb_competition_demand: *scotland_v2_gbcomp_metadata
+
+HT35_zonal_h2_scotland_v2_smr_exp_central_13p5twh_daily365_gbcomp_electrolysis_x2_scotland_network_x10:
+  description: "Scotland H2 v2 daily-365 structural-fix comparator: experimental SMR case with central Scottish and GB-competition H2 demand, electrolysis envelope x2, and Scottish H2 access groups x10."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  timestep_minutes: 1440
+  solver: *scotland_v2_solver
+  solve_period: *scotland_v2_full_period
+  future_capacity_candidates: *scotland_v2_future_capacity
+  technical_potential_constraints: *scotland_v2_technical_potential
+  hydrogen:
+    network: *scotland_v2_h2_network_electrolysis_x2_scotland_network_x10
+    explicit_demand: *scotland_v2_daily365_gbcomp_demand
+  nuclear: *scotland_v2_nuclear_smr
+  nuclear_to_x:
+    enabled: true
+  daily365_diagnostic:
+    <<: *scotland_v2_daily365_diagnostic
+    structural_fix_envelope: "electrolysis_x2_scotland_network_x10"
+    interpretation_note: "Promoted from seven-day diagnostics as the smallest tested joint production/access release that fully served Scotland and GB competition."
+  gb_competition_demand: *scotland_v2_gbcomp_metadata
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GB INDUSTRIAL-CLUSTER QUICK-WIN MATRIX
+# Retained-nuclear industrial-cluster scouts used as a lighter-weight
+# cross-check beyond the Scotland control case.
+# ══════════════════════════════════════════════════════════════════════════════
+
+HT35_zonal_h2_teesside_hartlepool_2p7twh_cluster7d:
+  description: "GB industrial-cluster quick-win: 7-day hourly Teesside-Hartlepool H2 scout with 2.7 TWh explicit H2 demand in a GB-integrated zonal electricity-hydrogen model."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: &gb_cluster_quickwin_solver
+    threads: 8
+    method: 1
+  solve_period: &gb_cluster_quickwin_period
+    enabled: true
+    start: "2035-01-01 00:00"
+    end: "2035-01-07 23:00"
+  future_capacity_candidates: &gb_cluster_quickwin_future_capacity
+    enabled: true
+    nuclear:
+      enabled: false
+  technical_potential_constraints: &gb_cluster_quickwin_technical_potential
+    enabled: true
+  hydrogen:
+    network: &gb_cluster_quickwin_h2_baseline
+      mode: "full"
+    explicit_demand: &gb_cluster_teesside_demand
+      enabled: true
+      annual_demand_twh: 2.7
+      profile: "flat"
+      nodes_path: "resources/case_studies/gb_cluster_n2h_2035/inputs/explicit_h2_demand_nodes_teesside_hartlepool.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear_to_x: &gb_cluster_quickwin_nuclear_to_x
+    enabled: true
+
+HT35_zonal_h2_teesside_hartlepool_retained_2p7twh_cluster7d:
+  description: "GB industrial-cluster quick-win: 7-day hourly Teesside-Hartlepool H2 scout with retained Hartlepool and 2.7 TWh explicit H2 demand."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *gb_cluster_quickwin_solver
+  solve_period: *gb_cluster_quickwin_period
+  future_capacity_candidates: *gb_cluster_quickwin_future_capacity
+  technical_potential_constraints: *gb_cluster_quickwin_technical_potential
+  hydrogen:
+    network: *gb_cluster_quickwin_h2_baseline
+    explicit_demand: *gb_cluster_teesside_demand
+  nuclear:
+    existing_asset_overrides:
+      retain_sites: ["Hartlepool"]
+  nuclear_to_x: *gb_cluster_quickwin_nuclear_to_x
+
+HT35_zonal_h2_hynet_heysham_1p5twh_cluster7d:
+  description: "GB industrial-cluster quick-win: 7-day hourly HyNet-Heysham H2 scout with 1.5 TWh explicit H2 demand in a GB-integrated zonal electricity-hydrogen model."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *gb_cluster_quickwin_solver
+  solve_period: *gb_cluster_quickwin_period
+  future_capacity_candidates: *gb_cluster_quickwin_future_capacity
+  technical_potential_constraints: *gb_cluster_quickwin_technical_potential
+  hydrogen:
+    network: *gb_cluster_quickwin_h2_baseline
+    explicit_demand: &gb_cluster_hynet_demand
+      enabled: true
+      annual_demand_twh: 1.5
+      profile: "flat"
+      nodes_path: "resources/case_studies/gb_cluster_n2h_2035/inputs/explicit_h2_demand_nodes_hynet_heysham.csv"
+      unmet_demand_penalty_gbp_per_mwh: 15000.0
+  nuclear_to_x: *gb_cluster_quickwin_nuclear_to_x
+
+HT35_zonal_h2_hynet_heysham_retained_1p5twh_cluster7d:
+  description: "GB industrial-cluster quick-win: 7-day hourly HyNet-Heysham H2 scout with retained Heysham and 1.5 TWh explicit H2 demand."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *gb_cluster_quickwin_solver
+  solve_period: *gb_cluster_quickwin_period
+  future_capacity_candidates: *gb_cluster_quickwin_future_capacity
+  technical_potential_constraints: *gb_cluster_quickwin_technical_potential
+  hydrogen:
+    network: *gb_cluster_quickwin_h2_baseline
+    explicit_demand: *gb_cluster_hynet_demand
+  nuclear:
+    existing_asset_overrides:
+      retain_sites: ["Heysham"]
+  nuclear_to_x: *gb_cluster_quickwin_nuclear_to_x
+
+HT35_zonal_h2_teesside_hartlepool_2p7twh_cluster7d_electrolysis_x2_pipeline_x10:
+  description: "GB industrial-cluster quick-win: 7-day hourly Teesside-Hartlepool H2 scout with diagnostic electrolysis x2 and pipeline x10 serviceable envelope."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *gb_cluster_quickwin_solver
+  solve_period: *gb_cluster_quickwin_period
+  future_capacity_candidates: *gb_cluster_quickwin_future_capacity
+  technical_potential_constraints: *gb_cluster_quickwin_technical_potential
+  hydrogen:
+    network: &gb_cluster_quickwin_h2_serviceable
+      mode: "full"
+      capacity_bounds:
+        electrolysis_multiplier: 2.0
+      pipeline_friction:
+        capacity_multiplier: 10.0
+        scotland_gb_capacity_multiplier: 10.0
+    explicit_demand: *gb_cluster_teesside_demand
+  nuclear_to_x: *gb_cluster_quickwin_nuclear_to_x
+
+HT35_zonal_h2_teesside_hartlepool_retained_2p7twh_cluster7d_electrolysis_x2_pipeline_x10:
+  description: "GB industrial-cluster quick-win: 7-day hourly Teesside-Hartlepool H2 scout with retained Hartlepool under a diagnostic electrolysis x2 and pipeline x10 serviceable envelope."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *gb_cluster_quickwin_solver
+  solve_period: *gb_cluster_quickwin_period
+  future_capacity_candidates: *gb_cluster_quickwin_future_capacity
+  technical_potential_constraints: *gb_cluster_quickwin_technical_potential
+  hydrogen:
+    network: *gb_cluster_quickwin_h2_serviceable
+    explicit_demand: *gb_cluster_teesside_demand
+  nuclear:
+    existing_asset_overrides:
+      retain_sites: ["Hartlepool"]
+  nuclear_to_x: *gb_cluster_quickwin_nuclear_to_x
+
+HT35_zonal_h2_hynet_heysham_1p5twh_cluster7d_electrolysis_x2_pipeline_x10:
+  description: "GB industrial-cluster quick-win: 7-day hourly HyNet-Heysham H2 scout with diagnostic electrolysis x2 and pipeline x10 serviceable envelope."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *gb_cluster_quickwin_solver
+  solve_period: *gb_cluster_quickwin_period
+  future_capacity_candidates: *gb_cluster_quickwin_future_capacity
+  technical_potential_constraints: *gb_cluster_quickwin_technical_potential
+  hydrogen:
+    network: *gb_cluster_quickwin_h2_serviceable
+    explicit_demand: *gb_cluster_hynet_demand
+  nuclear_to_x: *gb_cluster_quickwin_nuclear_to_x
+
+HT35_zonal_h2_hynet_heysham_retained_1p5twh_cluster7d_electrolysis_x2_pipeline_x10:
+  description: "GB industrial-cluster quick-win: 7-day hourly HyNet-Heysham H2 scout with retained Heysham under a diagnostic electrolysis x2 and pipeline x10 serviceable envelope."
+  modelled_year: 2035
+  FES_year: 2025
+  FES_scenario: "Holistic Transition"
+  renewables_year: 2020
+  demand_year: 2015
+  network_model: "Zonal"
+  solver: *gb_cluster_quickwin_solver
+  solve_period: *gb_cluster_quickwin_period
+  future_capacity_candidates: *gb_cluster_quickwin_future_capacity
+  technical_potential_constraints: *gb_cluster_quickwin_technical_potential
+  hydrogen:
+    network: *gb_cluster_quickwin_h2_serviceable
+    explicit_demand: *gb_cluster_hynet_demand
+  nuclear:
+    existing_asset_overrides:
+      retain_sites: ["Heysham"]
+  nuclear_to_x: *gb_cluster_quickwin_nuclear_to_x
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TEMPLATES (copy and modify for new scenarios)

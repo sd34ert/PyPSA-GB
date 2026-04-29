@@ -1,0 +1,12 @@
+site_id,site_name,site_status,lat,lon,country,source,existing_name_patterns
+hartlepool,Hartlepool,current,54.634983,-1.180856,England,repo_en6_site_table,Hartlepool
+heysham,Heysham,current,54.028886,-2.916089,England,repo_en6_site_table,Heysham 1|Heysham 2|Heysham1|Heysham2
+hinkley_point,Hinkley Point,proposed,51.206,-3.144,England,repo_en6_site_table,Hinkley Point B|Hinkley Point
+hunterston,Hunterston,decommissioned,55.721849,-4.894551,Scotland,repo_en6_site_table,Hunterston B|Hunterston
+sizewell,Sizewell,proposed,52.215036,1.619667,England,repo_en6_site_table,Sizewell B|Sizewell
+torness,Torness,current,55.967327,-2.408485,Scotland,repo_en6_site_table,Torness
+dungeness,Dungeness,decommissioned,50.913958,0.96385,England,repo_en6_site_table,Dungeness B|Dungeness
+wylfa,Wylfa,proposed,53.416667,-4.483333,Wales,repo_en6_site_table,Wylfa
+oldbury,Oldbury,proposed,51.6489,-2.5708,England,repo_en6_site_table,Oldbury
+bradwell,Bradwell,proposed,51.741389,0.896944,England,repo_en6_site_table,Bradwell|Bradwell B
+moorside,Moorside,proposed,54.544,-3.568,England,repo_en6_site_table,Moorside|Sellafield
